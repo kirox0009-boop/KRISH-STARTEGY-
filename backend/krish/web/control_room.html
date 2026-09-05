@@ -3,160 +3,201 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>KRISH · Control Room</title>
+<title>KRISH FACTORY · Control Room</title>
 <style>
   :root{
-    --bg:#04060d; --bg2:#070b16; --panel:rgba(12,18,32,.72); --line:#182444;
-    --line2:#0f1830; --txt:#d7e3ff; --dim:#6f82ab; --dimmer:#465878;
+    --bg:#04060d; --panel:rgba(11,16,29,.74); --panel2:rgba(17,25,44,.7);
+    --line:#1a2748; --line2:#131e39; --txt:#dae5ff; --dim:#7186ae; --dimmer:#465877;
     --data:#3ddbd9; --research:#a78bfa; --build:#5b9dff; --valid:#ffc75a;
-    --deliver:#4ade80; --system:#7b8bb0; --bad:#ff6b81;
+    --deliver:#4ade80; --system:#8698bd; --bad:#ff6b81; --gold:#ffd479;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box}
-  html,body{height:100%}
   body{
     margin:0;background:var(--bg);color:var(--txt);overflow-x:hidden;
     font:13.5px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   }
-  /* ---------- ambient background ---------- */
   #bg{position:fixed;inset:0;z-index:0;pointer-events:none}
   body::after{
     content:"";position:fixed;inset:0;z-index:1;pointer-events:none;
     background:
-      radial-gradient(1100px 620px at 12% -12%, rgba(61,219,217,.10), transparent 62%),
-      radial-gradient(900px 560px at 108% 4%, rgba(167,139,250,.10), transparent 58%),
-      radial-gradient(700px 700px at 50% 120%, rgba(91,157,255,.07), transparent 60%);
+      radial-gradient(1200px 640px at 10% -14%, rgba(61,219,217,.11), transparent 62%),
+      radial-gradient(950px 580px at 108% 2%, rgba(167,139,250,.11), transparent 58%),
+      radial-gradient(760px 700px at 52% 124%, rgba(91,157,255,.08), transparent 60%);
   }
   .wrap{position:relative;z-index:2}
 
-  /* ---------- header ---------- */
+  /* ══════════ animated brand ══════════ */
   header{
-    display:flex;align-items:center;gap:16px;padding:13px 22px;
-    border-bottom:1px solid var(--line2);position:sticky;top:0;z-index:30;
-    background:rgba(4,6,13,.82);backdrop-filter:blur(14px);
+    display:flex;align-items:center;gap:18px;padding:14px 24px 12px;
+    border-bottom:1px solid var(--line2);position:sticky;top:0;z-index:40;
+    background:rgba(4,6,13,.86);backdrop-filter:blur(16px);flex-wrap:wrap;
   }
-  .logo{font-weight:800;letter-spacing:.34em;font-size:14px;white-space:nowrap}
-  .logo b{color:var(--data);font-weight:800}
-  .tag{font:10px var(--mono);color:var(--dimmer);letter-spacing:.18em;text-transform:uppercase}
+  .brand{margin:0;display:flex;align-items:baseline;gap:11px;line-height:1;user-select:none}
+  .brand .word{display:flex}
+  .brand span{
+    font-weight:900;font-size:clamp(19px,2.3vw,29px);letter-spacing:.13em;
+    background:linear-gradient(180deg,#ffffff,#8fd8ff 48%,#3ddbd9);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:letterlift 3.4s ease-in-out infinite;
+    text-shadow:0 0 26px rgba(61,219,217,.22);
+  }
+  .brand .word.two span{
+    background:linear-gradient(180deg,#fff3d6,#ffd479 52%,#ff9f43);
+    -webkit-background-clip:text;background-clip:text;
+    animation-duration:4.1s;text-shadow:0 0 26px rgba(255,212,121,.22);
+  }
+  @keyframes letterlift{
+    0%,100%{transform:translateY(0);filter:brightness(1)}
+    50%{transform:translateY(-3px);filter:brightness(1.35)}
+  }
+  .brand::after{
+    content:"";position:absolute;left:24px;width:min(420px,44vw);height:34px;
+    background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.16) 50%,transparent 70%);
+    pointer-events:none;animation:shine 5.5s linear infinite;
+  }
+  @keyframes shine{0%{transform:translateX(-120%)}60%,100%{transform:translateX(220%)}}
+  .brandsub{font:9.5px var(--mono);color:var(--dimmer);letter-spacing:.32em;
+    text-transform:uppercase;margin-top:5px}
+
   .pill{
     font:10.5px var(--mono);padding:4px 10px;border:1px solid var(--line);
-    border-radius:999px;color:var(--dim);white-space:nowrap;display:flex;
-    align-items:center;gap:6px;
+    border-radius:999px;color:var(--dim);display:flex;align-items:center;gap:6px;
+    white-space:nowrap;
   }
-  .pill.live{color:var(--data);border-color:#17504e;background:rgba(61,219,217,.06)}
-  .pill.dead{color:var(--bad);border-color:#4c1c28;background:rgba(255,107,129,.06)}
+  .pill.live{color:var(--data);border-color:#17504e;background:rgba(61,219,217,.07)}
+  .pill.dead{color:var(--bad);border-color:#4c1c28;background:rgba(255,107,129,.07)}
   .beat{width:6px;height:6px;border-radius:50%;background:currentColor;
     box-shadow:0 0 8px currentColor;animation:beat 1.4s ease-in-out infinite}
   @keyframes beat{0%,100%{opacity:1}50%{opacity:.25}}
   .spacer{flex:1}
   button{
-    font:12px/1 inherit;padding:8px 13px;border-radius:8px;cursor:pointer;
-    background:rgba(20,29,50,.8);color:var(--txt);border:1px solid var(--line);
+    font:12px/1 inherit;padding:8px 13px;border-radius:9px;cursor:pointer;
+    background:rgba(22,32,55,.85);color:var(--txt);border:1px solid var(--line);
     transition:.18s;white-space:nowrap;
   }
   button:hover{border-color:var(--data);color:#fff;transform:translateY(-1px);
-    box-shadow:0 6px 18px -10px var(--data)}
-  button.primary{background:linear-gradient(135deg,#14554f,#243a86);border-color:#265d78}
+    box-shadow:0 8px 20px -12px var(--data)}
+  button.primary{background:linear-gradient(135deg,#15564f,#263c86);border-color:#2a6178}
+  button.gold{background:linear-gradient(135deg,#6b5216,#3d2f0c);border-color:#7d6222;color:#ffe9b8}
+  button.gold:hover{border-color:var(--gold);box-shadow:0 8px 20px -12px var(--gold)}
   button.ghost{background:transparent}
+  button.sm{padding:6px 10px;font-size:11px}
 
-  /* ---------- neural stage ---------- */
-  #stage{
-    position:relative;height:clamp(380px,52vh,620px);margin:0;
-    border-bottom:1px solid var(--line2);overflow:hidden;
+  /* ══════════ the floor ══════════ */
+  #floorWrap{position:relative;height:clamp(420px,58vh,760px);border-bottom:1px solid var(--line2);
+    overflow:hidden;background:
+      radial-gradient(1000px 500px at 50% 0%,rgba(20,32,58,.55),transparent 70%)}
+  #floor{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #floorHud{position:absolute;left:22px;top:14px;z-index:5;pointer-events:none}
+  #floorHud h3{margin:0;font:11px var(--mono);letter-spacing:.22em;text-transform:uppercase;
+    color:var(--dim)}
+  #floorHud p{margin:4px 0 0;font:10px var(--mono);color:var(--dimmer)}
+  #zoneKey{position:absolute;right:20px;top:14px;z-index:5;display:flex;gap:11px;flex-wrap:wrap;
+    justify-content:flex-end;max-width:58%}
+  #zoneKey span{font:9.5px var(--mono);color:var(--dimmer);display:flex;align-items:center;gap:5px}
+  #zoneKey i{width:9px;height:9px;border-radius:2px;display:block;transform:rotate(45deg)}
+  #tip{
+    position:absolute;z-index:9;pointer-events:none;opacity:0;transition:opacity .14s;
+    background:rgba(6,10,20,.96);border:1px solid var(--line);border-radius:10px;
+    padding:9px 12px;font:11px var(--mono);max-width:290px;box-shadow:0 20px 46px -24px #000;
   }
-  #graph{position:absolute;inset:0;width:100%;height:100%;display:block}
-  #stageInfo{
-    position:absolute;left:20px;bottom:14px;z-index:5;pointer-events:none;
-    font:10.5px var(--mono);color:var(--dimmer);letter-spacing:.09em;
-  }
-  #legend{
-    position:absolute;right:18px;top:14px;z-index:5;display:flex;gap:12px;
-    flex-wrap:wrap;justify-content:flex-end;max-width:60%;
-  }
-  #legend span{font:10px var(--mono);color:var(--dimmer);display:flex;align-items:center;gap:5px}
-  #legend i{width:16px;height:2px;border-radius:2px;display:block}
-  #tooltip{
-    position:absolute;z-index:9;pointer-events:none;opacity:0;transition:opacity .15s;
-    background:rgba(6,10,20,.95);border:1px solid var(--line);border-radius:9px;
-    padding:9px 11px;font:11px var(--mono);max-width:280px;
-    box-shadow:0 18px 44px -22px #000;
-  }
-  #tooltip b{color:#fff;font-family:inherit}
-  #tooltip .tt-task{color:var(--data);display:block;margin-top:4px;word-break:break-word}
+  #tip b{color:#fff;font-family:inherit;font-size:12.5px}
+  #tip .job{color:var(--data);display:block;margin-top:5px;word-break:break-word}
 
-  /* ---------- panels ---------- */
-  main{padding:16px 22px 70px;display:grid;gap:14px;
-    grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+  /* ══════════ layout ══════════ */
+  main{padding:18px 24px 76px;display:grid;gap:15px;
+    grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
   .card{
-    background:var(--panel);border:1px solid var(--line2);border-radius:14px;
-    padding:15px 16px;backdrop-filter:blur(6px);
-    box-shadow:0 20px 46px -34px #000;position:relative;overflow:hidden;
+    background:var(--panel);border:1px solid var(--line2);border-radius:16px;
+    padding:16px 17px;backdrop-filter:blur(7px);position:relative;overflow:hidden;
+    box-shadow:0 24px 52px -38px #000;
   }
-  .card::before{
-    content:"";position:absolute;top:0;left:0;right:0;height:1px;
-    background:linear-gradient(90deg,transparent,rgba(61,219,217,.35),transparent);
-  }
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(61,219,217,.4),transparent)}
   .card h2{
-    margin:0 0 12px;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;
-    color:var(--dim);display:flex;align-items:center;gap:8px;font-weight:600;
+    margin:0 0 13px;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--dim);display:flex;align-items:center;gap:9px;font-weight:600;
   }
-  .card h2 em{font-style:normal;color:var(--dimmer);letter-spacing:.06em;
+  .card h2 em{font-style:normal;color:var(--dimmer);letter-spacing:.05em;
     text-transform:none;font-size:11px;margin-left:auto}
   .wide{grid-column:1/-1}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:9px}
-  .stat{
-    background:linear-gradient(180deg,rgba(23,33,56,.8),rgba(12,18,32,.6));
-    border:1px solid var(--line2);border-radius:10px;padding:9px 11px;
+
+  /* vault */
+  .vault{border-color:rgba(255,212,121,.24);
+    background:linear-gradient(180deg,rgba(36,29,12,.5),rgba(11,16,29,.75))}
+  .vault::before{background:linear-gradient(90deg,transparent,rgba(255,212,121,.55),transparent)}
+  .vault h2{color:var(--gold)}
+  #vaultGrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+  .vcard{
+    border:1px solid rgba(255,212,121,.2);border-radius:13px;padding:13px 14px;
+    background:linear-gradient(160deg,rgba(41,33,14,.55),rgba(14,20,35,.7));
+    display:flex;flex-direction:column;gap:9px;transition:.2s;
   }
-  .stat b{display:block;font:650 21px/1.3 var(--mono);color:#fff}
+  .vcard:hover{border-color:rgba(255,212,121,.5);transform:translateY(-2px);
+    box-shadow:0 18px 38px -24px rgba(255,212,121,.5)}
+  .vcard.bl{border-color:rgba(255,199,90,.14);
+    background:linear-gradient(160deg,rgba(28,26,16,.5),rgba(14,20,35,.7))}
+  .vhead{display:flex;justify-content:space-between;align-items:flex-start;gap:9px}
+  .vname{font-weight:700;font-size:14.5px;color:#fff;line-height:1.25}
+  .vsub{font:10.5px var(--mono);color:var(--dimmer);margin-top:2px}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{font:10px var(--mono);padding:3px 8px;border-radius:7px;
+    background:rgba(255,255,255,.045);border:1px solid var(--line2);color:var(--dim)}
+  .chip b{color:#fff;font-family:inherit}
+  .chip.g b{color:var(--deliver)} .chip.r b{color:var(--bad)}
+  .dl{display:flex;gap:7px;align-items:center;margin-top:2px}
+  .dl a{text-decoration:none;flex:1}
+  .dl button{width:100%}
+  .viable{font:9.5px var(--mono);letter-spacing:.05em}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(94px,1fr));gap:10px}
+  .stat{background:linear-gradient(180deg,rgba(25,36,62,.85),rgba(12,18,33,.6));
+    border:1px solid var(--line2);border-radius:11px;padding:10px 12px}
+  .stat b{display:block;font:650 22px/1.3 var(--mono);color:#fff}
   .stat i{font-style:normal;font-size:9.5px;color:var(--dim);letter-spacing:.1em;
     text-transform:uppercase}
-  .stat.good b{color:var(--deliver)} .stat.warn b{color:var(--valid)}
-  .stat.bad b{color:var(--bad)}
+  .stat.good b{color:var(--deliver)} .stat.warn b{color:var(--valid)} .stat.bad b{color:var(--bad)}
+  .stat.gold b{color:var(--gold)}
 
-  .pipe{display:flex;gap:5px;flex-wrap:wrap;margin-top:13px}
-  .stage-chip{
-    flex:1 1 84px;background:rgba(16,24,42,.7);border:1px solid var(--line2);
-    border-radius:9px;padding:8px 6px;text-align:center;transition:.35s;
-  }
-  .stage-chip b{display:block;font:650 17px var(--mono);color:#fff}
-  .stage-chip i{font-style:normal;font-size:8.5px;color:var(--dim);
-    text-transform:uppercase;letter-spacing:.06em}
-  .stage-chip.hot{border-color:rgba(61,219,217,.55);
-    box-shadow:0 0 0 1px rgba(61,219,217,.16) inset,0 0 20px -10px var(--data)}
+  .pipe{display:flex;gap:5px;flex-wrap:wrap;margin-top:14px}
+  .schip{flex:1 1 86px;background:rgba(17,26,46,.75);border:1px solid var(--line2);
+    border-radius:10px;padding:9px 6px;text-align:center;transition:.35s}
+  .schip b{display:block;font:650 17px var(--mono);color:#fff}
+  .schip i{font-style:normal;font-size:8.5px;color:var(--dim);text-transform:uppercase;
+    letter-spacing:.05em}
+  .schip.hot{border-color:rgba(61,219,217,.5);box-shadow:0 0 22px -12px var(--data)}
 
-  #feed{max-height:340px;overflow:auto;font:11px/1.75 var(--mono)}
-  #feed>div{padding:3px 0;border-bottom:1px solid rgba(18,26,44,.7);
-    animation:slidein .32s cubic-bezier(.2,.8,.2,1)}
+  #feed{max-height:330px;overflow:auto;font:11px/1.72 var(--mono)}
+  #feed>div{padding:3px 0;border-bottom:1px solid rgba(19,28,48,.7);
+    animation:slidein .3s cubic-bezier(.2,.8,.2,1)}
   @keyframes slidein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-  .t{color:#3b496a;margin-right:7px}
+  .t{color:#3c4a6c;margin-right:7px}
   .who{font-weight:600}
-  .tp{color:#3b4c68}
+  .tp{color:#3c4d6a}
 
   table{width:100%;border-collapse:collapse;font-size:12px}
   th{text-align:left;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
     color:var(--dim);border-bottom:1px solid var(--line2);padding:6px 7px;font-weight:600}
-  td{padding:7px 7px;border-bottom:1px solid rgba(16,23,40,.8);vertical-align:top}
-  tbody tr{transition:.15s}
-  tbody tr.click{cursor:pointer}
-  tbody tr.click:hover{background:rgba(20,30,52,.7)}
-  .scroll{max-height:330px;overflow:auto}
+  td{padding:7px 7px;border-bottom:1px solid rgba(17,25,43,.8);vertical-align:top}
+  tbody tr.click{cursor:pointer;transition:.15s}
+  tbody tr.click:hover{background:rgba(22,33,57,.75)}
+  .scroll{max-height:320px;overflow:auto}
   .tagv{font:9.5px var(--mono);padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
-  .PASS{color:var(--deliver);border-color:#1e5138;background:rgba(74,222,128,.09)}
-  .BORDERLINE{color:var(--valid);border-color:#514219;background:rgba(255,199,90,.09)}
-  .REJECT{color:var(--bad);border-color:#4f1e29;background:rgba(255,107,129,.08)}
+  .PASS{color:var(--deliver);border-color:#1e5138;background:rgba(74,222,128,.1)}
+  .BORDERLINE{color:var(--valid);border-color:#524219;background:rgba(255,199,90,.1)}
+  .REJECT{color:var(--bad);border-color:#4f1e29;background:rgba(255,107,129,.09)}
   .muted{color:var(--dim);font-size:11px}
   .dimmer{color:var(--dimmer)}
-  .bar{height:4px;border-radius:3px;background:rgba(20,29,49,.9);overflow:hidden;margin:4px 0}
-  .bar>i{display:block;height:100%;
-    background:linear-gradient(90deg,var(--data),var(--research))}
-  select,input{font:12px inherit;background:rgba(20,29,50,.8);color:var(--txt);
+  .bar{height:4px;border-radius:3px;background:rgba(21,31,52,.9);overflow:hidden;margin:4px 0}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--data),var(--research))}
+  select,input{font:12px inherit;background:rgba(22,32,55,.85);color:var(--txt);
     border:1px solid var(--line);border-radius:8px;padding:7px 9px}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   pre{margin:0;font:11px/1.7 var(--mono);color:var(--dim);white-space:pre-wrap}
-  footer{padding:0 22px 30px;color:#3a486a;font-size:10.5px;position:relative;z-index:2}
+  footer{padding:0 24px 32px;color:#3b4a6c;font-size:10.5px;position:relative;z-index:2}
   ::-webkit-scrollbar{width:8px;height:8px}
-  ::-webkit-scrollbar-thumb{background:#1a2540;border-radius:8px}
+  ::-webkit-scrollbar-thumb{background:#1c2949;border-radius:8px}
   ::-webkit-scrollbar-track{background:transparent}
 </style>
 </head>
@@ -165,8 +206,13 @@
 <div class="wrap">
 
 <header>
-  <div class="logo">K R I S H<b>.</b></div>
-  <span class="tag">strategy factory</span>
+  <div>
+    <h1 class="brand">
+      <span class="word one" id="w1"></span>
+      <span class="word two" id="w2"></span>
+    </h1>
+    <div class="brandsub">autonomous strategy factory</div>
+  </div>
   <span class="pill" id="conn"><i class="beat"></i><span id="connTxt">connecting</span></span>
   <span class="pill" id="rate">— msg/s</span>
   <span class="pill" id="host">—</span>
@@ -176,14 +222,30 @@
   <button id="btnResume" class="ghost">⏵ Resume</button>
 </header>
 
-<section id="stage">
-  <canvas id="graph"></canvas>
-  <div id="legend"></div>
-  <div id="tooltip"></div>
-  <div id="stageInfo">agent mesh · edges appear as messages actually flow</div>
+<section id="floorWrap">
+  <canvas id="floor"></canvas>
+  <div id="floorHud">
+    <h3>Factory floor</h3>
+    <p id="floorNote">agents at their desks — couriers walk real messages between them</p>
+  </div>
+  <div id="zoneKey"></div>
+  <div id="tip"></div>
 </section>
 
 <main>
+  <section class="card vault wide">
+    <h2>🏆 Vault — ready to run <em id="vaultNote"></em></h2>
+    <div class="row" style="margin-bottom:11px">
+      <label class="muted" style="display:flex;gap:6px;align-items:center">
+        <input type="checkbox" id="inclBL" checked style="width:14px;height:14px"> include BORDERLINE
+      </label>
+      <span class="dimmer" style="font-size:10.5px">
+        only strategies that cleared the judge appear here — everything else is in the table below
+      </span>
+    </div>
+    <div id="vaultGrid"></div>
+  </section>
+
   <section class="card wide">
     <h2>Factory <em id="pipeNote"></em></h2>
     <div class="stats" id="stats"></div>
@@ -196,7 +258,7 @@
   </section>
 
   <section class="card">
-    <h2>Strategies</h2>
+    <h2>All strategies</h2>
     <div class="row" style="margin-bottom:9px">
       <select id="assetFilter"><option value="">all assets</option></select>
       <span class="muted" id="stratCount"></span>
@@ -205,14 +267,6 @@
       <table><thead><tr>
         <th>Name</th><th>Asset</th><th>Gen</th><th>Verdict</th><th>Score</th>
       </tr></thead><tbody id="strats"></tbody></table>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>Deliveries</h2>
-    <div class="scroll" style="max-height:250px">
-      <table><thead><tr><th>Package</th><th>Status</th><th></th></tr></thead>
-      <tbody id="deliveries"></tbody></table>
     </div>
   </section>
 
@@ -235,13 +289,13 @@
   </section>
 
   <section class="card wide">
-    <h2>Selected strategy</h2>
-    <div id="detail" class="muted">Click a strategy row, or a node in the mesh, to inspect it.</div>
+    <h2>Inspector</h2>
+    <div id="detail" class="muted">Click a desk on the floor, or any row, to inspect.</div>
   </section>
 </main>
 
 <footer>
-  Control room · full history at <a href="/docs" style="color:var(--data)">/docs</a> ·
+  KRISH FACTORY · API at <a href="/docs" style="color:var(--data)">/docs</a> ·
   historical analysis and generated software, <b>not financial advice</b>.
 </footer>
 </div>
@@ -249,337 +303,491 @@
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const fmt = (n, d = 2) => (n === null || n === undefined || n === "" ? "—" : Number(n).toFixed(d));
-const ago = (s) => s == null ? "—" : s < 60 ? `${Math.round(s)}s`
-  : s < 3600 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`;
+const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+const fmt = (n,d=2) => (n===null||n===undefined||n==="" ? "—" : Number(n).toFixed(d));
+const ago = (s) => s==null ? "—" : s<60 ? `${Math.round(s)}s`
+  : s<3600 ? `${Math.round(s/60)}m` : `${(s/3600).toFixed(1)}h`;
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c =>
-  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const hexA = (hex,a) => { const h=hex.replace("#","");
+  const v=h.length===3?h.split("").map(c=>c+c).join(""):h; const n=parseInt(v,16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; };
+const trim = (s,n) => String(s||"").length>n ? String(s).slice(0,n-1)+"…" : String(s||"");
+
+/* animated brand letters */
+(function brand(){
+  const put = (el, word) => el.innerHTML = word.split("").map((ch,i) =>
+    `<span style="animation-delay:${(i*0.09).toFixed(2)}s">${ch}</span>`).join("");
+  put($("w1"), "KRISH"); put($("w2"), "FACTORY");
+})();
 
 const STAGES = ["hypothesis","design","created","built","tested","tuned",
                 "robustness","risk_reviewed","judged_pass","packaged","delivered"];
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Message family → colour. This is what makes the mesh readable at a glance:
-   you can see data flowing in, ideas forming, validation grinding, delivery.
-   ═══════════════════════════════════════════════════════════════════════ */
 const FAMILIES = [
-  { key:"data",     label:"data & context", css:"--data",     test:t => /^(data|macro|news|regime)\./.test(t) },
-  { key:"research", label:"research",       css:"--research", test:t => /^(hypothesis|feature_spec|evolution)\.|^strategy\.created/.test(t) },
-  { key:"build",    label:"build",          css:"--build",    test:t => /^strategy\.(built|invalid|test_failed)/.test(t) },
-  { key:"valid",    label:"validation",     css:"--valid",    test:t => /^(backtest|robustness|risk|tune)\.|^strategy\.(tested|tuned|judged)/.test(t) },
-  { key:"deliver",  label:"delivery",       css:"--deliver",  test:t => /^(docs|package|delivery|automate|deploy|tradingview)\./.test(t) },
-  { key:"system",   label:"system",         css:"--system",   test:() => true },
+  { key:"data",     label:"data & context", css:"--data",     test:t=>/^(data|macro|news|regime)\./.test(t) },
+  { key:"research", label:"research",       css:"--research", test:t=>/^(hypothesis|feature_spec|evolution)\.|^strategy\.created/.test(t) },
+  { key:"build",    label:"build",          css:"--build",    test:t=>/^strategy\.(built|invalid|test_failed)/.test(t) },
+  { key:"valid",    label:"validation",     css:"--valid",    test:t=>/^(backtest|robustness|risk|tune)\.|^strategy\.(tested|tuned|judged)/.test(t) },
+  { key:"deliver",  label:"delivery",       css:"--deliver",  test:t=>/^(docs|package|delivery|automate|deploy|tradingview)\./.test(t) },
+  { key:"system",   label:"system",         css:"--system",   test:()=>true },
 ];
-const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-function familyOf(topic){ return FAMILIES.find(f => f.test(topic)) || FAMILIES[FAMILIES.length-1]; }
-
-/* Pipeline layout: left to right is the actual journey of a strategy.
-   System agents sit on the bottom rail because they touch everything. */
-const LAYOUT = {
-  orchestrator:{c:0,r:1}, market_data:{c:1,r:1},
-  researcher:{c:2,r:0}, quant_analyst:{c:2,r:1}, architect:{c:2,r:2},
-  developer:{c:3,r:1},
-  tester:{c:4,r:1},
-  tuner:{c:5,r:0}, robustness:{c:5,r:1}, risk:{c:5,r:2},
-  judge:{c:6,r:1},
-  doc_writer:{c:7,r:0}, packager:{c:7,r:1}, delivery:{c:7,r:2},
-  monitor:{c:1,r:3}, memory:{c:4,r:3}, librarian:{c:6,r:3},
-};
-const SQUAD_COLOUR = { data:"--data", research:"--research", build:"--build",
-                       validation:"--valid", delivery:"--deliver", system:"--system" };
+const familyOf = (t) => FAMILIES.find(f=>f.test(t)) || FAMILIES[FAMILIES.length-1];
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Graph state
+   THE FLOOR
+   An isometric open-plan office. Each agent owns a partitioned desk with a
+   workstation; zones are departments. When a message travels the bus, a courier
+   physically leaves the sender's desk, walks the corridors, and hands it over.
+   Desk coordinates are fixed so the room is learnable — you come back tomorrow
+   and the judge is still in the same corner.
    ═══════════════════════════════════════════════════════════════════════ */
-const nodes = new Map();       // name -> node
-const edges = new Map();       // "a→b" -> {a,b,weight,lastSeen,family}
-let particles = [];
-let roster = [];               // [{name, subscriptions[]}]
-const topicTargets = new Map();// topic -> [agent names]
-let hoverNode = null, selectedStrategy = null;
+const ZONES = [
+  { key:"system",     label:"OPERATIONS", css:"--system",   x:0,  y:0,  w:6,  h:6  },
+  { key:"data",       label:"DATA",       css:"--data",     x:0,  y:7,  w:6,  h:5  },
+  { key:"research",   label:"RESEARCH",   css:"--research", x:8,  y:0,  w:6,  h:7  },
+  { key:"build",      label:"BUILD",      css:"--build",    x:8,  y:8,  w:6,  h:4  },
+  { key:"validation", label:"VALIDATION", css:"--valid",    x:16, y:0,  w:11, h:9  },
+  { key:"delivery",   label:"DELIVERY",   css:"--deliver",  x:16, y:10, w:11, h:4  },
+];
+/* base desk per agent class; replicas get the extra slots after it */
+const DESKS = {
+  orchestrator:[[1,1]], memory:[[4,1]], monitor:[[1,4]], librarian:[[4,4]],
+  market_data:[[2,9]],
+  researcher:[[9,1]], quant_analyst:[[12,1]], architect:[[10,4]],
+  developer:[[10,9]],
+  tester:[[17,1],[20,1],[23,1],[25,1]],
+  tuner:[[17,3],[20,3],[23,3],[25,3]],
+  robustness:[[17,5],[20,5],[23,5],[25,5]],
+  risk:[[18,7]], judge:[[23,7]],
+  doc_writer:[[18,11]], packager:[[21,11]], delivery:[[24,11]],
+};
+const SPINE_Y = 14.6;               // main corridor everyone walks along
+const AISLE_DY = 1.35;              // step out of the cubicle into the aisle
+
+const floorCanvas = $("floor"), fctx = floorCanvas.getContext("2d");
+let staticLayer = null;             // pre-rendered floor+furniture
+let FW = 0, FH = 0, DPR = 1, S = 30, OX = 0, OY = 0;
+const agents = new Map();           // name -> {gx,gy,...}
+let couriers = [];
+let roster = [], hoverAgent = null;
+const topicTargets = new Map();
 let msgCount = 0, rateWindow = [];
 
-const canvas = $("graph"), ctx = canvas.getContext("2d");
-let W = 0, H = 0, DPR = 1;
+const baseName = (n) => { const i = n.lastIndexOf("-");
+  return i>0 && /^\d+$/.test(n.slice(i+1)) ? n.slice(0,i) : n; };
+const iso = (gx,gy) => ({ x: OX + (gx-gy)*S, y: OY + (gx+gy)*S*0.5 });
 
-function baseName(n){ const i = n.lastIndexOf("-"); 
-  return i > 0 && /^\d+$/.test(n.slice(i+1)) ? n.slice(0,i) : n; }
+function fitFloor(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  const r = floorCanvas.parentElement.getBoundingClientRect();
+  FW = r.width; FH = r.height;
+  floorCanvas.width = FW*DPR; floorCanvas.height = FH*DPR;
+  fctx.setTransform(DPR,0,0,DPR,0,0);
 
-function layoutNodes(){
-  const cols = 8, rows = 4;
-  const padX = Math.max(64, W * 0.07), padY = 54;
-  const stepX = (W - padX*2) / (cols - 1);
-  const stepY = (H - padY*2) / (rows - 1);
-  const byCell = new Map();
-  for (const n of nodes.values()){
-    const L = LAYOUT[baseName(n.name)] || { c: 3, r: 3 };
-    const key = `${L.c}:${L.r}`;
-    if (!byCell.has(key)) byCell.set(key, []);
-    byCell.get(key).push(n);
-  }
-  for (const [key, group] of byCell){
-    const [c, r] = key.split(":").map(Number);
-    const cx = padX + c*stepX, cy = padY + r*stepY;
-    group.forEach((n, i) => {
-      if (group.length === 1){ n.tx = cx; n.ty = cy; return; }
-      // replicas fan out in a tight arc so you can see there are four testers
-      const a = (-Math.PI/2) + (i - (group.length-1)/2) * 0.62;
-      const rad = 20 + group.length * 3.4;
-      n.tx = cx + Math.cos(a) * rad * 0.55;
-      n.ty = cy + Math.sin(a) * rad;
-    });
+  // Fit the whole room on screen: an iso grid of GWxGH spans (GW+GH) tiles wide
+  // and half that tall, so scale to whichever axis runs out first.
+  const GW = 28, GH = 17;
+  S = clamp(Math.min((FW - 70) / (GW + GH), (FH - 110) / ((GW + GH) * 0.5)), 12, 34);
+  OX = FW / 2 - ((GW - GH) / 2) * S;   // centre the diamond horizontally
+  OY = 62;
+  buildStaticLayer(GW, GH);
+  assignDesks();
+}
+window.addEventListener("resize", () => { fitFloor(); });
+
+function assignDesks(){
+  const used = {};
+  for (const a of agents.values()){
+    const base = baseName(a.name);
+    const slots = DESKS[base];
+    if (!slots){ a.gx = 14; a.gy = SPINE_Y; continue; }
+    used[base] = used[base] || 0;
+    const slot = slots[Math.min(used[base], slots.length-1)];
+    used[base]++;
+    a.gx = slot[0]; a.gy = slot[1];
   }
 }
 
-function resize(){
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
-  const rect = canvas.parentElement.getBoundingClientRect();
-  W = rect.width; H = rect.height;
-  canvas.width = W * DPR; canvas.height = H * DPR;
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  layoutNodes();
-  const bg = $("bg");
-  bg.width = window.innerWidth * DPR; bg.height = window.innerHeight * DPR;
-  bg.style.width = window.innerWidth + "px"; bg.style.height = window.innerHeight + "px";
-}
-window.addEventListener("resize", resize);
+/* ---------- static layer: floor tiles, zone tints, cubicles, desks ---------- */
+function buildStaticLayer(GW, GH){
+  const c = document.createElement("canvas");
+  c.width = floorCanvas.width; c.height = floorCanvas.height;
+  const g = c.getContext("2d");
+  g.setTransform(DPR,0,0,DPR,0,0);
 
-function syncNodes(agents){
-  for (const a of agents){
-    let n = nodes.get(a.name);
-    if (!n){
-      n = { name:a.name, x: W/2 + (Math.random()-.5)*160, y: H/2 + (Math.random()-.5)*120,
-            tx:W/2, ty:H/2, glow:0, flash:0, ring:0 };
-      nodes.set(a.name, n);
-      layoutNodes();
-    }
-    n.role = a.role; n.squad = a.squad; n.status = a.status; n.task = a.task;
-    n.handled = a.handled; n.errors = a.errors; n.elapsed = a.elapsed_on_task;
-    n.alive = a.alive; n.uptime = a.uptime;
-  }
-  for (const name of [...nodes.keys()]) if (!agents.some(a => a.name === name)) nodes.delete(name);
-}
+  const zoneAt = (x,y) => ZONES.find(z => x>=z.x && x<z.x+z.w && y>=z.y && y<z.y+z.h);
 
-function buildTopicMap(){
-  topicTargets.clear();
-  for (const a of roster){
-    for (const t of (a.subscriptions || [])){
-      if (!topicTargets.has(t)) topicTargets.set(t, []);
-      topicTargets.get(t).push(a.name);
+  // floor
+  for (let y=0; y<GH; y++){
+    for (let x=0; x<GW; x++){
+      const z = zoneAt(x,y);
+      const p = iso(x,y);
+      g.beginPath();
+      g.moveTo(p.x, p.y);
+      g.lineTo(p.x+S, p.y+S*0.5);
+      g.lineTo(p.x, p.y+S);
+      g.lineTo(p.x-S, p.y+S*0.5);
+      g.closePath();
+      const checker = (x+y)%2 === 0;
+      if (z){
+        const col = cssVar(z.css);
+        g.fillStyle = hexA(col, checker ? .075 : .045);
+      } else {
+        g.fillStyle = checker ? "rgba(18,26,46,.55)" : "rgba(13,20,36,.55)";
+      }
+      g.fill();
+      g.strokeStyle = "rgba(120,150,210,.045)"; g.lineWidth = 1; g.stroke();
     }
   }
-}
 
-/* A message arrives → light up the sender, wire an edge to every agent that
-   subscribes to that topic, and send a packet down each wire. The mesh is
-   therefore not decorative: it is the real subscription graph, drawn as it is
-   exercised. */
-function onMessage(m){
-  msgCount++; rateWindow.push(Date.now());
-  const fam = familyOf(m.topic);
-  const colour = cssVar(fam.css);
-
-  const src = nodes.get(m.sender) || pickReplica(m.sender);
-  if (src){ src.glow = 1; src.ring = 1; }
-
-  let targets = (topicTargets.get(m.topic) || [])
-    .filter(n => n !== m.sender)
-    .map(n => nodes.get(n) || pickReplica(n))
-    .filter(Boolean);
-
-  // Replicas compete for work: only one will actually take it, so drawing a
-  // packet to all four would overstate what happens. Show one per family.
-  const seen = new Set();
-  targets = targets.filter(t => { const b = baseName(t.name);
-    if (seen.has(b)) return false; seen.add(b); return true; }).slice(0, 5);
-
-  if (!src || !targets.length) return;
-  for (const dst of targets){
-    const key = `${src.name}→${dst.name}`;
-    const e = edges.get(key) || { a:src, b:dst, weight:0, family:fam.key };
-    e.weight = Math.min(e.weight + 1, 40); e.lastSeen = performance.now();
-    e.colour = colour; edges.set(key, e);
-    particles.push({ a:src, b:dst, t:0,
-      speed: 0.011 + Math.random()*0.006, colour,
-      size: m.kind === "request" ? 3.4 : 2.6, kind:m.kind });
+  // zone plates + labels
+  for (const z of ZONES){
+    const col = cssVar(z.css);
+    const a = iso(z.x, z.y), b = iso(z.x+z.w, z.y), cc = iso(z.x+z.w, z.y+z.h), d = iso(z.x, z.y+z.h);
+    g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.lineTo(cc.x,cc.y); g.lineTo(d.x,d.y);
+    g.closePath();
+    g.strokeStyle = hexA(col,.3); g.lineWidth = 1.4; g.setLineDash([5,5]); g.stroke();
+    g.setLineDash([]);
+    const lp = iso(z.x + z.w/2, z.y - 0.55);
+    g.font = `700 ${clamp(S*0.4,9,13)}px var(--mono),monospace`;
+    g.textAlign = "center"; g.fillStyle = hexA(col,.72);
+    g.fillText(z.label, lp.x, lp.y);
   }
-  if (particles.length > 320) particles = particles.slice(-320);
-}
-function pickReplica(name){
-  const cands = [...nodes.values()].filter(n => baseName(n.name) === name);
-  return cands.length ? cands[0] : null;
-}
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Render loop
-   ═══════════════════════════════════════════════════════════════════════ */
-function draw(now){
-  ctx.clearRect(0, 0, W, H);
-
-  // edges (fade with time since last use, so idle wires recede)
-  for (const [key, e] of edges){
-    const age = (now - e.lastSeen) / 1000;
-    if (age > 90){ edges.delete(key); continue; }
-    const alpha = clamp(0.06 + (e.weight/40)*0.20, 0, 0.3) * clamp(1 - age/90, 0, 1);
-    ctx.strokeStyle = e.colour || cssVar("--system");
-    ctx.globalAlpha = alpha;
-    ctx.lineWidth = 0.6 + Math.min(e.weight, 20)/16;
-    ctx.beginPath();
-    curve(e.a, e.b);
-    ctx.stroke();
+  // desks + cubicle partitions, drawn back to front for correct overlap
+  const desks = [];
+  for (const [base, slots] of Object.entries(DESKS))
+    slots.forEach(([x,y]) => desks.push({ base, x, y }));
+  desks.sort((p,q) => (p.x+p.y) - (q.x+q.y));
+  for (const d of desks){
+    const z = zoneAt(d.x, d.y);
+    drawCubicle(g, d.x, d.y, z ? cssVar(z.css) : cssVar("--system"));
   }
-  ctx.globalAlpha = 1;
+  staticLayer = c;
+}
 
-  // particles
-  particles = particles.filter(p => {
-    p.t += p.speed;
-    if (p.t >= 1){ p.b.flash = 1; p.b.ring = 1; return false; }
-    const pt = pointOn(p.a, p.b, p.t);
-    const trail = pointOn(p.a, p.b, Math.max(0, p.t - 0.07));
-    const g = ctx.createLinearGradient(trail.x, trail.y, pt.x, pt.y);
-    g.addColorStop(0, "transparent"); g.addColorStop(1, p.colour);
-    ctx.strokeStyle = g; ctx.lineWidth = p.size * 0.85; ctx.lineCap = "round";
-    ctx.beginPath(); ctx.moveTo(trail.x, trail.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
-    ctx.fillStyle = p.colour; ctx.shadowColor = p.colour; ctx.shadowBlur = 12;
-    ctx.beginPath(); ctx.arc(pt.x, pt.y, p.size, 0, 7); ctx.fill();
-    ctx.shadowBlur = 0;
+function box(g, gx, gy, w, d, h, top, side1, side2){
+  const p = iso(gx, gy);
+  const rx = w*S, ry = d*S*0.5, hh = h*S;
+  // top face
+  g.beginPath();
+  g.moveTo(p.x, p.y - hh);
+  g.lineTo(p.x + rx, p.y + ry - hh);
+  g.lineTo(p.x, p.y + ry*2 - hh);
+  g.lineTo(p.x - rx, p.y + ry - hh);
+  g.closePath(); g.fillStyle = top; g.fill();
+  // right face
+  g.beginPath();
+  g.moveTo(p.x + rx, p.y + ry - hh);
+  g.lineTo(p.x, p.y + ry*2 - hh);
+  g.lineTo(p.x, p.y + ry*2);
+  g.lineTo(p.x + rx, p.y + ry);
+  g.closePath(); g.fillStyle = side1; g.fill();
+  // left face
+  g.beginPath();
+  g.moveTo(p.x - rx, p.y + ry - hh);
+  g.lineTo(p.x, p.y + ry*2 - hh);
+  g.lineTo(p.x, p.y + ry*2);
+  g.lineTo(p.x - rx, p.y + ry);
+  g.closePath(); g.fillStyle = side2; g.fill();
+}
+
+function drawCubicle(g, gx, gy, col){
+  // partition walls: two low panels behind the desk
+  box(g, gx-0.62, gy-0.62, 0.62, 0.62, 0.5, hexA(col,.20), hexA(col,.12), hexA(col,.07));
+  // desk
+  box(g, gx, gy, 0.72, 0.72, 0.16, "rgba(46,62,96,.95)", "rgba(28,39,64,.95)", "rgba(20,29,50,.95)");
+  // monitor stand + body (screen drawn per frame so it can glow)
+  box(g, gx, gy-0.18, 0.30, 0.30, 0.34, "rgba(14,20,34,.98)", "rgba(10,15,27,.98)", "rgba(8,12,22,.98)");
+}
+
+/* ---------- couriers ---------- */
+function walkPath(from, to){
+  // out of the cubicle, along the spine corridor, then into the target cubicle
+  return [
+    { x:from.gx, y:from.gy },
+    { x:from.gx, y:from.gy + AISLE_DY },
+    { x:from.gx, y:SPINE_Y },
+    { x:to.gx,   y:SPINE_Y },
+    { x:to.gx,   y:to.gy + AISLE_DY },
+    { x:to.gx,   y:to.gy },
+  ];
+}
+function spawnCourier(from, to, colour, topic){
+  const path = walkPath(from, to);
+  let len = 0;
+  for (let i=1;i<path.length;i++)
+    len += Math.hypot(path[i].x-path[i-1].x, path[i].y-path[i-1].y);
+  couriers.push({ path, len, t:0, speed: 3.6/Math.max(len,1), colour, topic, phase:Math.random()*6 });
+  if (couriers.length > 90) couriers = couriers.slice(-90);
+}
+function courierPos(c){
+  const p = c.path;
+  let want = c.t * c.len, acc = 0;
+  for (let i=1;i<p.length;i++){
+    const seg = Math.hypot(p[i].x-p[i-1].x, p[i].y-p[i-1].y);
+    if (acc + seg >= want || i === p.length-1){
+      const f = seg ? clamp((want-acc)/seg, 0, 1) : 1;
+      return { gx: p[i-1].x + (p[i].x-p[i-1].x)*f, gy: p[i-1].y + (p[i].y-p[i-1].y)*f };
+    }
+    acc += seg;
+  }
+  return { gx: p[p.length-1].x, gy: p[p.length-1].y };
+}
+
+/* ---------- per-frame ---------- */
+function drawFloor(now){
+  fctx.clearRect(0,0,FW,FH);
+  if (staticLayer) fctx.drawImage(staticLayer, 0, 0, FW, FH);
+
+  const drawables = [];
+  for (const a of agents.values()) drawables.push({ kind:"agent", z:a.gx+a.gy, a });
+  for (const c of couriers){
+    const p = courierPos(c);
+    drawables.push({ kind:"courier", z:p.gx+p.gy, c, p });
+  }
+  drawables.sort((p,q) => p.z - q.z);
+
+  for (const d of drawables){
+    if (d.kind === "agent") drawAgent(fctx, d.a, now);
+    else drawCourier(fctx, d.c, d.p, now);
+  }
+
+  couriers = couriers.filter(c => {
+    c.t += c.speed * 0.016;
+    if (c.t >= 1){
+      const dest = agents.get(c.toName);
+      if (dest) dest.flash = 1;
+      return false;
+    }
     return true;
   });
+  requestAnimationFrame(drawFloor);
+}
 
-  // nodes
-  for (const n of nodes.values()){
-    n.x += (n.tx - n.x) * 0.09;
-    n.y += (n.ty - n.y) * 0.09;
-    n.glow *= 0.94; n.flash *= 0.90; n.ring *= 0.955;
+function drawAgent(g, a, now){
+  const zone = ZONES.find(z => z.key === a.squad);
+  const col = cssVar(zone ? zone.css : "--system");
+  const working = a.status === "working" || a.status === "waiting";
+  const dead = !a.alive || a.status === "stopped";
+  const paused = a.status === "paused";
+  const err = a.status === "error";
+  a.flash = (a.flash || 0) * 0.9;
 
-    const colour = cssVar(SQUAD_COLOUR[n.squad] || "--system");
-    const working = n.status === "working" || n.status === "waiting";
-    const dead = !n.alive || n.status === "stopped";
-    const paused = n.status === "paused";
-    const err = n.status === "error" || n.errors > 0;
-    const base = 8.4 + (LAYOUT[baseName(n.name)] ? 1.6 : 0);
-    const pulse = working ? 1 + Math.sin(now/240 + n.x) * 0.11 : 1;
-    const r = base * pulse * (1 + n.flash * 0.5);
+  const p = iso(a.gx, a.gy);
+  const screenY = p.y - 0.34*S - 0.02*S;
 
-    // expanding ring on activity
-    if (n.ring > 0.05){
-      ctx.strokeStyle = colour; ctx.globalAlpha = n.ring * 0.5; ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(n.x, n.y, r + (1 - n.ring) * 26, 0, 7); ctx.stroke();
-      ctx.globalAlpha = 1;
+  // monitor screen — the tell for what an agent is doing
+  const sw = 0.26*S, sh = 0.30*S;
+  const flicker = working ? 0.72 + Math.sin(now/120 + a.gx*3)*0.18 : 0.3;
+  const screenCol = dead ? "#1b2338" : paused ? cssVar("--valid")
+    : err ? cssVar("--bad") : col;
+  g.save();
+  g.translate(p.x, screenY);
+  g.fillStyle = hexA(screenCol, dead ? .25 : flicker);
+  g.shadowColor = screenCol; g.shadowBlur = working ? 22 : 7;
+  g.beginPath();
+  g.moveTo(0,-sh*0.55); g.lineTo(sw,-sh*0.2); g.lineTo(0,sh*0.15); g.lineTo(-sw,-sh*0.2);
+  g.closePath(); g.fill();
+  g.shadowBlur = 0;
+  if (working){ // scanning lines, so a busy desk reads as busy
+    g.globalAlpha = .55; g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = 1;
+    for (let i=0;i<3;i++){
+      const yy = -sh*0.42 + ((now/260 + i*0.33) % 1) * sh*0.5;
+      g.beginPath(); g.moveTo(-sw*0.55, yy); g.lineTo(sw*0.55, yy); g.stroke();
     }
-    // halo
-    const halo = ctx.createRadialGradient(n.x, n.y, r*0.4, n.x, n.y, r*3.6);
-    halo.addColorStop(0, hexA(colour, dead ? 0.05 : (working ? 0.34 : 0.16) + n.glow*0.3));
-    halo.addColorStop(1, "transparent");
-    ctx.fillStyle = halo;
-    ctx.beginPath(); ctx.arc(n.x, n.y, r*3.6, 0, 7); ctx.fill();
-    // core
-    ctx.fillStyle = dead ? "#141d33" : paused ? cssVar("--valid")
-      : err ? cssVar("--bad") : colour;
-    ctx.globalAlpha = dead ? 0.5 : 1;
-    ctx.shadowColor = colour; ctx.shadowBlur = working ? 18 : 8;
-    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "rgba(4,6,13,.85)";
-    ctx.beginPath(); ctx.arc(n.x, n.y, r*0.45, 0, 7); ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // label
-    const hovered = hoverNode === n;
-    ctx.font = `${hovered ? 600 : 500} 10.5px ui-monospace,Menlo,Consolas,monospace`;
-    ctx.textAlign = "center";
-    ctx.fillStyle = hovered ? "#fff" : dead ? "#33405e" : "rgba(215,227,255,.72)";
-    ctx.fillText(n.name, n.x, n.y + r + 13);
-    if (working && n.task){
-      ctx.font = "9px ui-monospace,Menlo,Consolas,monospace";
-      ctx.fillStyle = hexA(colour, .8);
-      ctx.fillText(trim(n.task, 26), n.x, n.y + r + 24);
-    }
+    g.globalAlpha = 1;
   }
-  requestAnimationFrame(draw);
-}
-function curve(a, b){
-  const mx = (a.x + b.x)/2, my = (a.y + b.y)/2 - Math.abs(b.x - a.x) * 0.10 - 12;
-  ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(mx, my, b.x, b.y);
-}
-function pointOn(a, b, t){
-  const mx = (a.x + b.x)/2, my = (a.y + b.y)/2 - Math.abs(b.x - a.x) * 0.10 - 12;
-  const u = 1 - t;
-  return { x: u*u*a.x + 2*u*t*mx + t*t*b.x, y: u*u*a.y + 2*u*t*my + t*t*b.y };
-}
-function hexA(hex, a){
-  const h = hex.replace("#","");
-  const v = h.length === 3 ? h.split("").map(c=>c+c).join("") : h;
-  const n = parseInt(v, 16);
-  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
-}
-function trim(s, n){ return s.length > n ? s.slice(0, n-1) + "…" : s; }
+  g.restore();
 
-/* hover tooltip + click to focus a strategy */
-canvas.addEventListener("mousemove", (ev) => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-  let best = null, bd = 22;
-  for (const n of nodes.values()){
-    const d = Math.hypot(n.x - mx, n.y - my);
-    if (d < bd){ bd = d; best = n; }
+  // seated figure
+  const fx = p.x, fy = p.y + 0.30*S;
+  const bob = working ? Math.sin(now/230 + a.gx)*1.6 : 0;
+  g.fillStyle = dead ? "rgba(50,62,90,.5)" : hexA(col,.92);
+  g.beginPath(); g.ellipse(fx, fy+0.10*S, 0.26*S, 0.13*S, 0, 0, 7); g.fill();  // chair
+  g.fillStyle = dead ? "#2b3550" : "#26314c";
+  g.beginPath();
+  g.ellipse(fx, fy - 0.14*S + bob*0.3, 0.17*S, 0.22*S, 0, 0, 7); g.fill();     // torso
+  g.fillStyle = dead ? "#39456a" : hexA(col, .95);
+  g.beginPath(); g.arc(fx, fy - 0.40*S + bob*0.5, 0.115*S, 0, 7); g.fill();     // head
+  if (working){
+    g.strokeStyle = hexA(col,.55); g.lineWidth = 1.6;
+    g.beginPath(); g.arc(fx, fy - 0.40*S + bob*0.5, 0.115*S + 3 + (1-((now/700)%1))*5, 0, 7);
+    g.globalAlpha = 1 - ((now/700)%1); g.stroke(); g.globalAlpha = 1;
   }
-  hoverNode = best;
-  const tt = $("tooltip");
+  if (a.flash > .05){
+    g.strokeStyle = "#fff"; g.globalAlpha = a.flash*.8; g.lineWidth = 2;
+    g.beginPath(); g.arc(fx, fy - 0.2*S, 0.4*S + (1-a.flash)*12, 0, 7); g.stroke();
+    g.globalAlpha = 1;
+  }
+
+  // nameplate
+  const hovered = hoverAgent === a;
+  g.font = `${hovered?700:500} ${clamp(S*0.32,8.5,11)}px ui-monospace,Menlo,monospace`;
+  g.textAlign = "center";
+  g.fillStyle = hovered ? "#fff" : dead ? "#35415f" : "rgba(218,229,255,.75)";
+  g.fillText(a.name, p.x, p.y + 0.72*S);
+
+  // speech bubble with the current job
+  if (working && a.task){
+    const label = trim(a.task, 24);
+    g.font = `${clamp(S*0.29,8,10)}px ui-monospace,Menlo,monospace`;
+    const w = g.measureText(label).width + 14;
+    const bx = p.x - w/2, by = screenY - 0.62*S;
+    g.fillStyle = "rgba(6,10,20,.9)"; g.strokeStyle = hexA(col,.5); g.lineWidth = 1;
+    roundRect(g, bx, by, w, 17, 6); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(p.x-4, by+17); g.lineTo(p.x, by+22); g.lineTo(p.x+4, by+17);
+    g.fillStyle = "rgba(6,10,20,.9)"; g.fill();
+    g.fillStyle = hexA(col,.95); g.textAlign = "center";
+    g.fillText(label, p.x, by + 12);
+  }
+}
+
+function drawCourier(g, c, pos, now){
+  const p = iso(pos.gx, pos.gy);
+  const bob = Math.sin(now/95 + c.phase) * 2.2;
+  // shadow
+  g.fillStyle = "rgba(0,0,0,.32)";
+  g.beginPath(); g.ellipse(p.x, p.y + 4, 6, 3, 0, 0, 7); g.fill();
+  // body
+  g.fillStyle = c.colour; g.shadowColor = c.colour; g.shadowBlur = 14;
+  g.beginPath(); g.ellipse(p.x, p.y - 8 + bob, 4.2, 6, 0, 0, 7); g.fill();
+  g.beginPath(); g.arc(p.x, p.y - 16 + bob, 3.4, 0, 7); g.fill();
+  g.shadowBlur = 0;
+  // the parcel it is carrying
+  g.fillStyle = "#fff"; g.globalAlpha = .9;
+  g.fillRect(p.x + 4, p.y - 12 + bob, 4.5, 4.5);
+  g.globalAlpha = 1;
+}
+
+function roundRect(g,x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y); g.lineTo(x+w-r,y); g.quadraticCurveTo(x+w,y,x+w,y+r);
+  g.lineTo(x+w,y+h-r); g.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  g.lineTo(x+r,y+h); g.quadraticCurveTo(x,y+h,x,y+h-r);
+  g.lineTo(x,y+r); g.quadraticCurveTo(x,y,x+r,y); g.closePath();
+}
+
+/* hover + click on desks */
+floorCanvas.addEventListener("mousemove", (ev) => {
+  const r = floorCanvas.getBoundingClientRect();
+  const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  let best = null, bd = 26;
+  for (const a of agents.values()){
+    const p = iso(a.gx, a.gy);
+    const d = Math.hypot(p.x - mx, (p.y - 6) - my);
+    if (d < bd){ bd = d; best = a; }
+  }
+  hoverAgent = best;
+  const tip = $("tip");
   if (best){
-    tt.style.opacity = 1;
-    tt.style.left = clamp(mx + 14, 8, W - 300) + "px";
-    tt.style.top = clamp(my + 14, 8, H - 110) + "px";
-    tt.innerHTML = `<b>${esc(best.name)}</b> <span class="dimmer">${esc(best.role||"")}</span><br>
-      <span class="dimmer">${esc(best.status)}</span> ·
-      ${best.elapsed != null ? "⏱ " + ago(best.elapsed) : "up " + ago(best.uptime)} ·
-      ✓ ${best.handled ?? 0}${best.errors ? ` · <span style="color:var(--bad)">✕ ${best.errors}</span>` : ""}
-      ${best.task ? `<span class="tt-task">${esc(best.task)}</span>` : ""}`;
-    canvas.style.cursor = "pointer";
-  } else { tt.style.opacity = 0; canvas.style.cursor = "default"; }
+    tip.style.opacity = 1;
+    tip.style.left = clamp(mx + 16, 8, FW - 300) + "px";
+    tip.style.top  = clamp(my + 16, 8, FH - 120) + "px";
+    tip.innerHTML = `<b>${esc(best.name)}</b> <span class="dimmer">${esc(best.role||"")}</span><br>
+      <span class="dimmer">${esc(best.squad)} · ${esc(best.status)}</span><br>
+      ${best.elapsed != null ? "⏱ on task " + ago(best.elapsed) : "up " + ago(best.uptime)}
+      · ✓ ${best.handled ?? 0}${best.errors ? ` · <span style="color:var(--bad)">✕ ${best.errors}</span>` : ""}
+      ${best.task ? `<span class="job">${esc(best.task)}</span>` : ""}`;
+    floorCanvas.style.cursor = "pointer";
+  } else { tip.style.opacity = 0; floorCanvas.style.cursor = "default"; }
 });
-canvas.addEventListener("mouseleave", () => { hoverNode = null; $("tooltip").style.opacity = 0; });
+floorCanvas.addEventListener("mouseleave", () => {
+  hoverAgent = null; $("tip").style.opacity = 0;
+});
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Ambient background: slow drifting particle field
-   ═══════════════════════════════════════════════════════════════════════ */
+/* ambient starfield */
 (function ambient(){
   const c = $("bg"), g = c.getContext("2d");
-  const dots = Array.from({length:70}, () => ({
-    x:Math.random(), y:Math.random(), r:Math.random()*1.5+.3,
-    vx:(Math.random()-.5)*.00012, vy:(Math.random()-.5)*.00012, a:Math.random()*.4+.08 }));
+  let dots = [];
+  const seed = () => {
+    c.width = window.innerWidth; c.height = window.innerHeight;
+    c.style.width = "100%"; c.style.height = "100%";
+    dots = Array.from({length:70}, () => ({ x:Math.random(), y:Math.random(),
+      r:Math.random()*1.4+.3, vx:(Math.random()-.5)*.00012, vy:(Math.random()-.5)*.00012,
+      a:Math.random()*.35+.07 }));
+  };
+  seed(); window.addEventListener("resize", seed);
   (function tick(){
-    const w = c.width, h = c.height;
-    g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,w,h);
+    g.clearRect(0,0,c.width,c.height);
     for (const d of dots){
       d.x += d.vx; d.y += d.vy;
-      if (d.x < 0 || d.x > 1) d.vx *= -1;
-      if (d.y < 0 || d.y > 1) d.vy *= -1;
-      g.fillStyle = `rgba(120,170,255,${d.a})`;
-      g.beginPath(); g.arc(d.x*w, d.y*h, d.r*DPR, 0, 7); g.fill();
+      if (d.x<0||d.x>1) d.vx*=-1;
+      if (d.y<0||d.y>1) d.vy*=-1;
+      g.fillStyle = `rgba(130,175,255,${d.a})`;
+      g.beginPath(); g.arc(d.x*c.width, d.y*c.height, d.r, 0, 7); g.fill();
     }
     requestAnimationFrame(tick);
   })();
 })();
 
 /* ═══════════════════════════════════════════════════════════════════════
-   WebSocket
+   Live data
    ═══════════════════════════════════════════════════════════════════════ */
+function syncAgents(list){
+  let added = false;
+  for (const a of list){
+    let n = agents.get(a.name);
+    if (!n){ n = { name:a.name, gx:14, gy:SPINE_Y, flash:0 }; agents.set(a.name, n); added = true; }
+    Object.assign(n, { role:a.role, squad:a.squad, status:a.status, task:a.task,
+      handled:a.handled, errors:a.errors, elapsed:a.elapsed_on_task,
+      alive:a.alive, uptime:a.uptime });
+  }
+  for (const name of [...agents.keys()])
+    if (!list.some(a => a.name === name)) { agents.delete(name); added = true; }
+  if (added) assignDesks();
+  $("floorNote").textContent =
+    `${list.filter(a=>a.alive).length}/${list.length} agents on the floor · ` +
+    `${list.filter(a=>a.status==="working").length} at work`;
+}
+
+function buildTopicMap(){
+  topicTargets.clear();
+  for (const a of roster){
+    for (const t of (a.subscribes || a.subscriptions || [])){
+      if (!topicTargets.has(t)) topicTargets.set(t, []);
+      topicTargets.get(t).push(a.name);
+    }
+  }
+}
+
+function onMessage(m){
+  msgCount++; rateWindow.push(Date.now());
+  const fam = familyOf(m.topic);
+  const colour = cssVar(fam.css);
+  const from = agents.get(m.sender) || firstReplica(m.sender);
+  if (!from) return;
+  from.flash = 1;
+
+  const seen = new Set();
+  const targets = (topicTargets.get(m.topic) || [])
+    .filter(n => n !== m.sender)
+    .map(n => agents.get(n) || firstReplica(n))
+    .filter(Boolean)
+    .filter(t => { const b = baseName(t.name);
+      if (seen.has(b)) return false; seen.add(b); return true; })
+    .slice(0, 4);
+
+  for (const to of targets){
+    spawnCourier(from, to, colour, m.topic);
+    couriers[couriers.length-1].toName = to.name;
+  }
+}
+const firstReplica = (name) =>
+  [...agents.values()].find(a => baseName(a.name) === name) || null;
+
 function connect(){
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws/live`);
-  ws.onopen = () => {
-    $("conn").className = "pill live"; $("connTxt").textContent = "live";
-    setInterval(() => ws.readyState === 1 && ws.send("ping"), 20000);
-  };
-  ws.onclose = () => {
-    $("conn").className = "pill dead"; $("connTxt").textContent = "reconnecting";
-    setTimeout(connect, 2500);
-  };
+  ws.onopen = () => { $("conn").className = "pill live"; $("connTxt").textContent = "live";
+    setInterval(() => ws.readyState === 1 && ws.send("ping"), 20000); };
+  ws.onclose = () => { $("conn").className = "pill dead";
+    $("connTxt").textContent = "reconnecting"; setTimeout(connect, 2500); };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.type === "agents"){ syncNodes(m.agents); renderStats(m.counts, m.summary); }
+    if (m.type === "agents"){ syncAgents(m.agents); renderStats(m.counts, m.summary); }
     else if (m.type === "message"){ onMessage(m); pushFeed(m); }
   };
 }
@@ -589,13 +797,15 @@ function pushFeed(m){
   const row = document.createElement("div");
   row.innerHTML = `<span class="t">${new Date(m.ts).toLocaleTimeString()}</span>` +
     `<span class="who" style="color:var(${fam.css})">${esc(m.sender)}</span>` +
-    `<span class="tp"> ${esc(m.topic)}</span> ${esc(m.summary || "")}`;
+    `<span class="tp"> ${esc(m.topic)}</span> ${esc(m.summary||"")}`;
   feed.prepend(row);
   while (feed.childElementCount > 200) feed.lastElementChild.remove();
-  if (/strategy\.(judged|created)|delivery\.completed|package\.ready/.test(m.topic)) queueRefresh();
+  if (/strategy\.judged|delivery\.completed|package\.ready|strategy\.created/.test(m.topic))
+    queueRefresh();
 }
 let refreshTimer = null;
-function queueRefresh(){ clearTimeout(refreshTimer); refreshTimer = setTimeout(refreshTables, 900); }
+const queueRefresh = () => { clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(refreshAll, 900); };
 
 setInterval(() => {
   const cut = Date.now() - 5000;
@@ -612,35 +822,83 @@ function renderStats(counts, summary){
   const items = [
     ["strategies", counts.strategies, ""],
     ["backtests", counts.backtests, ""],
-    ["passed", counts.passed, "good"],
+    ["passed", counts.passed, "gold"],
     ["borderline", counts.borderline, "warn"],
     ["rejected", counts.rejected, "bad"],
-    ["delivered", counts.deliveries, "good"],
+    ["packaged", counts.deliveries, "good"],
     ["live projects", counts.projects_running, ""],
-    ["agents working", summary?.working ?? 0, ""],
+    ["at work", summary?.working ?? 0, ""],
   ];
-  $("stats").innerHTML = items.map(([k, v, cls]) =>
-    `<div class="stat ${cls}"><b>${v ?? 0}</b><i>${k}</i></div>`).join("");
+  $("stats").innerHTML = items.map(([k,v,c]) =>
+    `<div class="stat ${c}"><b>${v ?? 0}</b><i>${k}</i></div>`).join("");
 }
 
-async function refreshTables(){
-  let projects, strategies, deliveries, data, priors, disk;
-  try {
-    [projects, strategies, deliveries, data, priors, disk] = await Promise.all([
-      fetch("/api/projects?limit=200").then(r => r.json()),
-      fetch(`/api/strategies?limit=120${$("assetFilter").value ? "&asset=" + $("assetFilter").value : ""}`).then(r => r.json()),
-      fetch("/api/deliveries").then(r => r.json()),
-      fetch("/api/health/data").then(r => r.json()),
-      fetch("/api/priors").then(r => r.json()),
-      fetch("/api/health/storage").then(r => r.json()),
+function renderVault(rows){
+  $("vaultNote").textContent = `${rows.length} ready`;
+  if (!rows.length){
+    $("vaultGrid").innerHTML = `<div class="muted">
+      Nothing has cleared the judge yet. When a strategy passes it appears here with a
+      download link — you do not have to go looking for it.</div>`;
+    return;
+  }
+  $("vaultGrid").innerHTML = rows.map(r => {
+    const m = r.metrics || {};
+    const pkg = r.package;
+    return `<div class="vcard ${r.verdict === "BORDERLINE" ? "bl" : ""}">
+      <div class="vhead">
+        <div>
+          <div class="vname">${esc(r.name)}</div>
+          <div class="vsub">${esc(r.asset)} ${esc(r.timeframe)} · ${esc(r.style)}
+            · gen ${r.generation}</div>
+        </div>
+        <span class="tagv ${r.verdict}">${r.verdict}</span>
+      </div>
+      <div class="chips">
+        <span class="chip">score <b>${fmt(r.score,2)}</b></span>
+        <span class="chip">trades <b>${m.trades ?? "—"}</b></span>
+        <span class="chip ${(m.sharpe??0)>0?"g":"r"}">Sharpe <b>${fmt(m.sharpe,2)}</b></span>
+        <span class="chip">PF <b>${fmt(m.profit_factor,2)}</b></span>
+        <span class="chip ${(m.max_drawdown_pct??0)<20?"g":"r"}">maxDD <b>${fmt(m.max_drawdown_pct,1)}%</b></span>
+        <span class="chip">win <b>${fmt(m.win_rate_pct,0)}%</b></span>
+      </div>
+      <div class="viable" style="color:${r.long_term_viable ? "var(--deliver)" : "var(--dimmer)"}">
+        ${r.long_term_viable ? "✔ long-term viability plausible"
+                            : "• long-term viability not established"}</div>
+      <div class="dl">
+        ${pkg ? `<a href="${pkg.download}"><button class="gold">⬇ Download ZIP
+            <span class="dimmer">(${(pkg.size_bytes/1024).toFixed(0)} KB)</span></button></a>`
+              : `<button class="sm" onclick="post('/api/control/deliver/${r.strategy_id}')">
+                   Package it now</button>`}
+        <button class="sm ghost" onclick="showDetail('${r.strategy_id}')">details</button>
+        <a href="/api/strategies/${r.strategy_id}/pine" target="_blank"
+           title="TradingView Pine Script"><button class="sm ghost">Pine</button></a>
+      </div>
+      ${pkg ? `<div class="dimmer" style="font:9.5px var(--mono)">
+        ${esc(pkg.name)} · sha256 ${esc(String(pkg.checksum).slice(0,16))}…</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+async function refreshAll(){
+  let projects, strategies, data, priors, disk, vault;
+  try{
+    [projects, strategies, data, priors, disk, vault] = await Promise.all([
+      fetch("/api/projects?limit=200").then(r=>r.json()),
+      fetch(`/api/strategies?limit=120${$("assetFilter").value ? "&asset="+$("assetFilter").value : ""}`).then(r=>r.json()),
+      fetch("/api/health/data").then(r=>r.json()),
+      fetch("/api/priors").then(r=>r.json()),
+      fetch("/api/health/storage").then(r=>r.json()),
+      fetch(`/api/vault?include_borderline=${$("inclBL").checked}`).then(r=>r.json()),
     ]);
   } catch { return; }
 
+  renderVault(vault);
+
   const byStage = {};
-  projects.forEach(p => byStage[p.stage] = (byStage[p.stage] || 0) + 1);
+  projects.forEach(p => byStage[p.stage] = (byStage[p.stage]||0) + 1);
   $("pipe").innerHTML = STAGES.map(s => {
     const n = byStage[s] || 0;
-    return `<div class="stage-chip ${n ? "hot" : ""}"><b>${n}</b><i>${s.replace(/_/g," ")}</i></div>`;
+    return `<div class="schip ${n?"hot":""}"><b>${n}</b><i>${s.replace(/_/g," ")}</i></div>`;
   }).join("");
   $("pipeNote").textContent = `${projects.length} projects tracked`;
 
@@ -648,20 +906,13 @@ async function refreshTables(){
   $("strats").innerHTML = strategies.map(s => `
     <tr class="click" onclick="showDetail('${s.id}')">
       <td>${esc(s.name)}<div class="dimmer" style="font-size:10.5px">${esc(s.style)} · ${esc(s.origin)}</div></td>
-      <td>${s.asset}<div class="dimmer" style="font-size:10.5px">${s.timeframe}</div></td>
+      <td>${esc(s.asset)}<div class="dimmer" style="font-size:10.5px">${esc(s.timeframe)}</div></td>
       <td>${s.generation}</td>
       <td>${s.verdict ? `<span class="tagv ${s.verdict}">${s.verdict}</span>`
                       : `<span class="dimmer">${esc(s.status)}</span>`}</td>
       <td>${s.score != null ? fmt(s.score,3) : "—"}</td>
     </tr>`).join("") ||
     `<tr><td colspan="5" class="muted">nothing yet — the first cycle is still running</td></tr>`;
-
-  $("deliveries").innerHTML = deliveries.map(d => `
-    <tr><td>${esc(d.package_name)}<div class="dimmer" style="font-size:10.5px">
-      ${(d.size_bytes/1024).toFixed(0)} KB · ${String(d.checksum).slice(0,12)}…</div></td>
-    <td><span class="tagv">${esc(d.status)}</span></td>
-    <td><a href="${d.download}" style="color:var(--data)">get</a></td></tr>`).join("") ||
-    `<tr><td colspan="3" class="muted">no packages yet</td></tr>`;
 
   $("data").innerHTML = data.map(d => `<tr><td>${d.asset}</td><td>${d.timeframe}</td>
     <td>${d.bars ?? "—"}</td><td class="dimmer">${d.cached ? ago(d.age_seconds) : "not cached"}</td></tr>`).join("");
@@ -672,60 +923,63 @@ async function refreshTables(){
     ["packages", disk.packages_mb, "one ZIP per accepted strategy"],
     ["logs", disk.logs_mb, disk.notes?.logs ?? ""],
   ];
+  const os = disk.object_store || {};
   $("storage").innerHTML = `
     <table><tbody>${rows.map(([k,v,note]) => `<tr><td>${k}</td>
       <td style="font-family:var(--mono)">${fmt(v,1)} MB</td>
       <td class="dimmer" style="font-size:10px">${esc(note)}</td></tr>`).join("")}</tbody></table>
     <div class="muted" style="margin-top:8px">total <b>${fmt(disk.total_mb,1)} MB</b> ·
       ${fmt(disk.kb_per_strategy,0)} KB/strategy ·
-      <b>${fmt(disk.disk_free_gb,1)} GB</b> free of ${fmt(disk.disk_total_gb,0)} GB</div>`;
+      <b>${fmt(disk.disk_free_gb,1)} GB</b> free of ${fmt(disk.disk_total_gb,0)} GB</div>
+    <div class="dimmer" style="font:10px var(--mono);margin-top:5px">
+      object store: ${os.enabled ? esc(os.backend + " · " + (os.bucket||"")) : "local only"}</div>`;
 
   $("priors").innerHTML = priors.length ? priors.map(p => `
     <div style="margin-bottom:9px">
       <div><b>${esc(p.scope)}</b> <span class="dimmer">${esc(p.key)} · n=${p.samples}</span></div>
       <div class="bar"><i style="width:${Math.round((p.confidence||0)*100)}%"></i></div>
       <div class="dimmer" style="font-family:var(--mono);font-size:10px">
-        ${esc(JSON.stringify(p.value).slice(0,200))}</div>
-    </div>`).join("")
-    : `<div class="muted">Nothing yet. Priors appear once five strategies have been judged for an asset.</div>`;
+        ${esc(JSON.stringify(p.value).slice(0,190))}</div></div>`).join("")
+    : `<div class="muted">Nothing yet. Priors appear once five strategies have been judged
+        for an asset.</div>`;
 }
 
 async function showDetail(id){
-  selectedStrategy = id;
-  const s = await fetch(`/api/strategies/${id}`).then(r => r.json());
-  const runs = {}; (s.runs || []).forEach(r => runs[r.kind] = r);
+  const s = await fetch(`/api/strategies/${id}`).then(r=>r.json());
+  const runs = {}; (s.runs||[]).forEach(r => runs[r.kind] = r);
   const cols = ["full","is","oos","tuned_oos"].filter(k => runs[k]);
   const keys = [["trades","trades"],["sharpe","sharpe"],["profit factor","profit_factor"],
     ["win rate %","win_rate_pct"],["expectancy R","expectancy_r"],
     ["max DD %","max_drawdown_pct"],["return %","total_return_pct"]];
   const v = s.verdict;
-  const eq = (runs.oos || runs.full || {}).equity || [];
+  const eq = (runs.tuned_oos || runs.oos || runs.full || {}).equity || [];
 
   $("detail").innerHTML = `
     <div class="row" style="justify-content:space-between;align-items:flex-start;gap:14px">
-      <div><h3 style="margin:0 0 4px;font-size:16px">${esc(s.name)}</h3>
-        <div class="muted">${s.asset} ${s.timeframe} · ${esc(s.style)} · gen ${s.generation} · ${esc(s.origin)}
+      <div><h3 style="margin:0 0 4px;font-size:17px">${esc(s.name)}</h3>
+        <div class="muted">${esc(s.asset)} ${esc(s.timeframe)} · ${esc(s.style)} ·
+          gen ${s.generation} · ${esc(s.origin)}
         ${v ? ` · <span class="tagv ${v.verdict}">${v.verdict}</span> score ${fmt(v.score,3)}
           · long-term viable: <b>${v.long_term_viable ? "yes" : "not established"}</b>` : ""}</div></div>
       <div class="row">
         <a href="/api/strategies/${id}/pine" target="_blank"><button>Pine Script</button></a>
         <button onclick="post('/api/control/retest/${id}')">Re-run backtest</button>
-        <button onclick="post('/api/control/deliver/${id}')">Package &amp; deliver</button>
+        <button class="gold" onclick="post('/api/control/deliver/${id}')">Package &amp; deliver</button>
         <button onclick="post('/api/control/automate/${id}',{target:'mt5',mode:'demo'})">Automate on MT5</button>
       </div>
     </div>
     ${v ? `<p style="margin:12px 0 6px">${esc(v.summary)}</p>
-      ${(v.reasons||[]).length ? `<ul class="muted" style="margin:0 0 4px">${
-        v.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}` : ""}
-    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:18px;margin-top:12px" id="detailGrid">
+      ${(v.reasons||[]).length ? `<ul class="muted" style="margin:0">${
+        v.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>` : ""}` : ""}
+    <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:20px;margin-top:14px">
       <div>
-        <canvas id="eq" style="width:100%;height:150px;display:block"></canvas>
+        <canvas id="eq" style="width:100%;height:156px;display:block"></canvas>
         <div class="dimmer" style="font:10px var(--mono);margin-top:4px">
-          equity — ${runs.oos ? "out-of-sample" : "full history"}</div>
+          equity — ${runs.tuned_oos ? "tuned out-of-sample" : runs.oos ? "out-of-sample" : "full history"}</div>
         <table style="margin-top:12px"><thead><tr><th>metric</th>
-          ${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead>
+          ${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead>
           <tbody>${keys.map(([label,k]) => `<tr><td class="dimmer">${label}</td>
-            ${cols.map(c => `<td>${fmt((runs[c].metrics||{})[k],3)}</td>`).join("")}</tr>`).join("")}
+            ${cols.map(c=>`<td>${fmt((runs[c].metrics||{})[k],3)}</td>`).join("")}</tr>`).join("")}
           </tbody></table>
       </div>
       <div><pre>${esc(s.description)}</pre></div>
@@ -736,75 +990,74 @@ async function showDetail(id){
 
 function drawEquity(points){
   const c = $("eq"); if (!c || !points.length) return;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = c.clientWidth, h = 150;
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const w = c.clientWidth, h = 156;
   c.width = w*dpr; c.height = h*dpr;
   const g = c.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0);
-  const ys = points.map(p => p.equity);
-  const lo = Math.min(...ys), hi = Math.max(...ys), span = (hi - lo) || 1;
-  const X = i => (i/(points.length-1)) * (w-2) + 1;
-  const Y = v => h - 8 - ((v - lo)/span) * (h - 20);
-  const up = ys[ys.length-1] >= ys[0];
-  const col = up ? cssVar("--deliver") : cssVar("--bad");
+  const ys = points.map(p=>p.equity);
+  const lo = Math.min(...ys), hi = Math.max(...ys), span = (hi-lo)||1;
+  const X = i => (i/(points.length-1))*(w-2)+1;
+  const Y = v => h - 9 - ((v-lo)/span)*(h-22);
+  const col = ys[ys.length-1] >= ys[0] ? cssVar("--deliver") : cssVar("--bad");
 
-  const fill = g.createLinearGradient(0,0,0,h);
-  fill.addColorStop(0, hexA(col,.22)); fill.addColorStop(1, "transparent");
+  const grad = g.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0, hexA(col,.24)); grad.addColorStop(1,"transparent");
   g.beginPath(); g.moveTo(X(0), h);
-  points.forEach((p,i) => g.lineTo(X(i), Y(p.equity)));
-  g.lineTo(X(points.length-1), h); g.closePath(); g.fillStyle = fill; g.fill();
+  points.forEach((p,i)=>g.lineTo(X(i), Y(p.equity)));
+  g.lineTo(X(points.length-1), h); g.closePath(); g.fillStyle = grad; g.fill();
 
-  g.beginPath(); points.forEach((p,i) => i ? g.lineTo(X(i), Y(p.equity)) : g.moveTo(X(i), Y(p.equity)));
-  g.strokeStyle = col; g.lineWidth = 1.6; g.shadowColor = col; g.shadowBlur = 10; g.stroke();
+  g.beginPath();
+  points.forEach((p,i)=> i ? g.lineTo(X(i),Y(p.equity)) : g.moveTo(X(i),Y(p.equity)));
+  g.strokeStyle = col; g.lineWidth = 1.7; g.shadowColor = col; g.shadowBlur = 11; g.stroke();
   g.shadowBlur = 0;
-  g.strokeStyle = "rgba(110,130,171,.22)"; g.lineWidth = 1; g.setLineDash([3,4]);
-  const start = Y(ys[0]);
-  g.beginPath(); g.moveTo(0, start); g.lineTo(w, start); g.stroke(); g.setLineDash([]);
+  g.strokeStyle = "rgba(113,134,174,.25)"; g.lineWidth = 1; g.setLineDash([3,4]);
+  g.beginPath(); g.moveTo(0, Y(ys[0])); g.lineTo(w, Y(ys[0])); g.stroke(); g.setLineDash([]);
 }
 
 async function post(url, body){
   try{
-    const r = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" },
-                                body: JSON.stringify(body || {}) });
-    const j = await r.json().catch(() => ({}));
+    const r = await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"},
+                                body: JSON.stringify(body||{}) });
+    const j = await r.json().catch(()=>({}));
     if (!r.ok) alert(`Failed (${r.status}): ${j.detail ? JSON.stringify(j.detail) : "see logs"}`);
     else if (j.note) alert(j.note);
     queueRefresh();
   } catch(e){ alert("Request failed: " + e.message); }
 }
 
-$("btnCycle").onclick = () => post("/api/control/cycle", { count:2 });
-$("btnPause").onclick = () => post("/api/control/agent", { agent:"*", action:"pause" });
+$("btnCycle").onclick  = () => post("/api/control/cycle", { count:2 });
+$("btnPause").onclick  = () => post("/api/control/agent", { agent:"*", action:"pause" });
 $("btnResume").onclick = () => post("/api/control/agent", { agent:"*", action:"resume" });
-$("assetFilter").onchange = refreshTables;
+$("assetFilter").onchange = refreshAll;
+$("inclBL").onchange = refreshAll;
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 (async function init(){
-  resize();
-  $("legend").innerHTML = FAMILIES.map(f =>
-    `<span><i style="background:var(${f.css})"></i>${f.label}</span>`).join("");
+  $("zoneKey").innerHTML = ZONES.map(z =>
+    `<span><i style="background:var(${z.css})"></i>${z.label}</span>`).join("");
+  fitFloor();
 
   try{
-    roster = await fetch("/api/agents/roster").then(r => r.json());
+    roster = await fetch("/api/agents/roster").then(r=>r.json());
     buildTopicMap();
-    const agents = await fetch("/api/agents").then(r => r.json());
-    syncNodes(agents);
+    syncAgents(await fetch("/api/agents").then(r=>r.json()));
   } catch {}
 
   try{
-    const ov = await fetch("/api/overview").then(r => r.json());
+    const ov = await fetch("/api/overview").then(r=>r.json());
     $("assetFilter").innerHTML = `<option value="">all assets</option>` +
-      ov.assets.map(a => `<option value="${a.key}">${a.key}</option>`).join("");
+      ov.assets.map(a=>`<option value="${a.key}">${a.key}</option>`).join("");
     renderStats(ov.counts, ov.agents);
-    const h = await fetch("/api/health").then(r => r.json());
+    const h = await fetch("/api/health").then(r=>r.json());
     const load = h.load_available ? ` · load ${fmt(h.load["1m"],2)}` : "";
-    $("host").textContent = `${h.platform || ""} · ${h.cpus} cpu${load} · ${fmt(h.disk.free_gb,0)} GB free`;
+    $("host").textContent = `${h.platform||""} · ${h.cpus} cpu${load} · ${fmt(h.disk.free_gb,0)} GB free`;
   } catch {}
 
-  resize();
+  fitFloor();
   connect();
-  refreshTables();
-  setInterval(refreshTables, 15000);
-  requestAnimationFrame(draw);
+  refreshAll();
+  setInterval(refreshAll, 15000);
+  requestAnimationFrame(drawFloor);
 })();
 </script>
 </body>
