@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import logging
 import os
+from logging.handlers import RotatingFileHandler
 from typing import Any
 
 from .agents.base import BaseAgent
@@ -22,7 +23,7 @@ from .agents.build import DeveloperAgent
 from .agents.data import MarketDataAgent
 from .agents.deliver import DeliveryAgent, DocWriterAgent, PackagerAgent
 from .agents.research import ArchitectAgent, QuantAnalystAgent, ResearcherAgent
-from .agents.system import MemoryAgent, MonitorAgent, OrchestratorAgent
+from .agents.system import LibrarianAgent, MemoryAgent, MonitorAgent, OrchestratorAgent
 from .agents.validate import (
     JudgeAgent,
     RiskAgent,
@@ -57,6 +58,7 @@ AGENT_CLASSES: tuple[type[BaseAgent], ...] = (
     DeliveryAgent,
     MemoryAgent,
     MonitorAgent,
+    LibrarianAgent,
 )
 
 #: Agents worth replicating when the box has cores to spare.
@@ -69,7 +71,16 @@ def configure_logging() -> None:
     level = getattr(logging, settings().log_level.upper(), logging.INFO)
     handlers: list[logging.Handler] = [logging.StreamHandler()]
     with contextlib.suppress(OSError):
-        handlers.append(logging.FileHandler(LOG_DIR / "krish.log", encoding="utf-8"))
+        # Rotating, not plain: this process is meant to run for months, and an
+        # unbounded log file is the classic way to fill a VPS disk.
+        handlers.append(
+            RotatingFileHandler(
+                LOG_DIR / "krish.log",
+                maxBytes=20 * 1024 * 1024,
+                backupCount=5,
+                encoding="utf-8",
+            )
+        )
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)-7s %(name)-22s %(message)s",

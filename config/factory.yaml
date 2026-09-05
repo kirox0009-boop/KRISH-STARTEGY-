@@ -33,3 +33,13 @@ delivery:
   drive_enabled: false
   telegram_enabled: false
   package_name_template: "KRISH_{asset}_{style}_{name}_v{version}"
+
+# Housekeeping. The factory runs forever, so disk use has to be bounded.
+# Metrics and verdicts are NEVER deleted by these settings - only the bulky
+# per-bar detail (equity curves, trade lists) of work that was already rejected.
+retention:
+  prune_interval_minutes: 30
+  events_keep_days: 7           # flight-recorder log rows
+  rejected_detail_keep_hours: 12  # strip equity/trade detail of REJECTED strategies
+  rejected_keep_days: 60        # delete rejected strategies entirely after this
+  vacuum: true                  # give freed space back to the filesystem (SQLite)
