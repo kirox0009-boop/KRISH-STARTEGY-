@@ -1,0 +1,35 @@
+# Factory behaviour + the bar a strategy must clear to be delivered.
+# Everything here is editable from the control room UI.
+
+cycle:
+  interval_seconds: 60          # how often the orchestrator starts a new research cycle
+  strategies_per_cycle: 4       # ideas generated per cycle
+  max_parallel_backtests: 4
+  elite_population: 20          # breeding stock kept per asset
+
+backtest:
+  initial_balance: 10000
+  risk_per_trade_pct: 1.0
+  oos_fraction: 0.3             # last 30% of history is never used for tuning
+  min_trades: 40                # below this, results are noise
+  warmup_bars: 200
+
+judge:
+  # A strategy must clear ALL of these on OUT-OF-SAMPLE data.
+  min_oos_sharpe: 0.8
+  min_oos_profit_factor: 1.15
+  max_oos_drawdown_pct: 25.0
+  min_oos_trades: 30
+  min_expectancy_r: 0.05        # average win in R multiples
+  max_is_oos_degradation: 0.5   # OOS Sharpe must be >= 50% of IS Sharpe
+  borderline_band: 0.15         # within 15% of thresholds -> BORDERLINE, not REJECT
+
+tuner:
+  trials: 40
+  walk_forward_folds: 4
+  complexity_penalty: 0.02      # per tuned parameter, discourages curve fitting
+
+delivery:
+  drive_enabled: false
+  telegram_enabled: false
+  package_name_template: "KRISH_{asset}_{style}_{name}_v{version}"

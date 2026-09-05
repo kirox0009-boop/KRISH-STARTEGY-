@@ -1,0 +1,73 @@
+# KRISH on a VPS: one command, runs 24/7.
+#
+#   cp .env.example .env && $EDITOR .env
+#   docker compose up -d
+#   open http://<vps-ip>:8000
+#
+# The agents and the API share one process on purpose: the live agent registry
+# (status, current task, elapsed time) is in-process. Splitting them across
+# containers needs the Redis-backed registry from Phase 8 of docs/ROADMAP.md.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-krish}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-krish}
+      POSTGRES_DB: ${POSTGRES_DB:-krish}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-krish}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  krish:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      KRISH_BUS: redis
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-krish}:${POSTGRES_PASSWORD:-krish}@postgres:5432/${POSTGRES_DB:-krish}
+    ports:
+      - "${KRISH_API_PORT:-8000}:8000"
+    volumes:
+      # config is bind-mounted so the control room's config edits survive rebuilds
+      - ./config:/app/config
+      - krish-var:/app/var
+    # Backtests are CPU-hungry; leave headroom so the API stays responsive.
+    deploy:
+      resources:
+        limits:
+          cpus: "${KRISH_CPU_LIMIT:-3.0}"
+          memory: ${KRISH_MEM_LIMIT:-3g}
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  redis-data:
+  pg-data:
+  krish-var:
