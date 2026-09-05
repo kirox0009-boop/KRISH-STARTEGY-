@@ -8,6 +8,7 @@ instructions clear enough to run it without asking anyone anything.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import csv
 import hashlib
 import io
@@ -27,6 +28,7 @@ from ..compilers.python_export import to_python_runner
 from ..config import PACKAGE_DIR, factory_section, settings
 from ..ir.schema import StrategyIR
 from ..messages import Message, Topic
+from ..storage import keep_local_packages, package_key, store, upload_packages
 from ..store import Delivery, in_db, runs_for_strategy, save, update_project
 from .base import BaseAgent
 
@@ -285,6 +287,13 @@ class PackagerAgent(BaseAgent):
             self._build, ir, msg.payload, package_name, verdict
         )
 
+        # Push to object storage before anyone is told the package exists, so a
+        # recorded remote URL is always real.
+        remote_url: str | None = None
+        if upload_packages():
+            self.progress(f"uploading {package_name}")
+            remote_url = await asyncio.to_thread(store().put, path, package_key(package_name))
+
         record = await in_db(
             save,
             Delivery(
@@ -293,7 +302,9 @@ class PackagerAgent(BaseAgent):
                 local_path=str(path),
                 checksum=checksum,
                 size_bytes=size,
-                channels={},
+                channels=(
+                    {"object_store": {"status": "ok", "url": remote_url}} if remote_url else {}
+                ),
                 status="packaged",
             ),
         )
@@ -314,6 +325,7 @@ class PackagerAgent(BaseAgent):
                 "path": str(path),
                 "checksum": checksum,
                 "size_bytes": size,
+                "remote_url": remote_url,
                 "manifest": manifest,
                 "summary": msg.payload.get("summary", ""),
                 "metrics": msg.payload.get("metrics", {}),
@@ -465,9 +477,12 @@ class DeliveryAgent(BaseAgent):
     async def handle(self, msg: Message) -> None:
         cfg = factory_section("delivery")
         path = Path(str(msg.payload["path"]))
+        remote_url = msg.payload.get("remote_url")
         channels: dict[str, Any] = {
             "local": {"status": "ok", "path": str(path), "checksum": msg.payload.get("checksum")}
         }
+        if remote_url:
+            channels["object_store"] = {"status": "ok", "url": remote_url}
 
         if cfg.get("telegram_enabled") and settings().telegram_bot_token:
             channels["telegram"] = await self._telegram(path, msg.payload)
@@ -479,7 +494,17 @@ class DeliveryAgent(BaseAgent):
         else:
             channels["gdrive"] = {"status": "disabled"}
 
-        ok = any(c.get("status") == "ok" for c in channels.values())
+        # Only now, once every channel has had its turn, is it safe to reclaim the
+        # local copy — and only if it genuinely lives somewhere else.
+        if remote_url and not keep_local_packages():
+            with contextlib.suppress(OSError):
+                path.unlink(missing_ok=True)
+                channels["local"] = {
+                    "status": "offloaded",
+                    "note": "local copy removed; served from object storage",
+                }
+
+        ok = any(c.get("status") in {"ok", "offloaded"} for c in channels.values())
         await in_db(
             self._record,
             str(msg.payload.get("delivery_id", "")),

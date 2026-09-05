@@ -16,7 +16,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -32,6 +37,8 @@ from .ir.schema import StrategyIR
 from .messages import Message, MsgKind, Topic
 from .registry import registry
 from .runtime import Factory
+from .storage import package_key
+from .storage import store as object_store
 
 log = logging.getLogger("krish.api")
 
@@ -326,9 +333,16 @@ def create_app(factory: Factory | None = None) -> FastAPI:
         if record is None:
             raise HTTPException(404, "delivery not found")
         path = Path(record.local_path)
-        if not path.exists():
-            raise HTTPException(410, "package file is no longer on disk")
-        return FileResponse(path, filename=path.name, media_type="application/zip")
+        if path.exists():
+            return FileResponse(path, filename=path.name, media_type="application/zip")
+
+        # Offloaded to object storage: hand the caller a link to it rather than a
+        # dead 410. Re-signed on each request so private buckets keep working.
+        remote = (record.channels or {}).get("object_store") or {}
+        url = remote.get("url") or object_store().url_for(package_key(record.package_name))
+        if url:
+            return RedirectResponse(url, status_code=307)
+        raise HTTPException(410, "package is no longer on disk and has no remote copy")
 
     # ------------------------------------------------------------------ #
     # configuration (editable from the UI)

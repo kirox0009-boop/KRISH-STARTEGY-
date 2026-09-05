@@ -23,6 +23,7 @@ import pandas as pd
 
 from ..assets import TIMEFRAME_MINUTES, universe
 from ..config import CACHE_DIR
+from ..storage import cache_key, offload_price_cache, store
 
 log = logging.getLogger("krish.data")
 
@@ -109,6 +110,14 @@ def fetch_ohlcv(
             if cached is not None and len(cached) > 200:
                 return cached
 
+    # Nothing usable locally: the librarian may have pruned it after uploading.
+    # Pulling it back from object storage beats re-downloading years of history.
+    pruned_locally = not refresh and not path.exists() and offload_price_cache()
+    if pruned_locally and store().get(cache_key(asset.key, timeframe), path):
+        restored = load_cached(asset.key, timeframe)
+        if restored is not None and len(restored) > 200:
+            return restored
+
     frame: pd.DataFrame | None = None
     symbol = asset.symbol_for("yfinance")
     if symbol:
@@ -144,6 +153,8 @@ def fetch_ohlcv(
     path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(path)
     log.info("cached %s bars for %s %s", len(frame), asset.key, timeframe)
+    if offload_price_cache():
+        store().put(path, cache_key(asset.key, timeframe))
     return frame
 
 
