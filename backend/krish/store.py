@@ -543,3 +543,88 @@ def database_bytes() -> int:
         return 0
     path = Path(url.split("sqlite:///")[-1])
     return path.stat().st_size if path.exists() else 0
+
+
+def accepted_strategies(
+    *, include_borderline: bool = True, limit: int = 60
+) -> list[dict[str, Any]]:
+    """The vault: strategies that cleared the judge, with their download link.
+
+    This is the answer to "it says 8 passed - where are they?". A verdict on its
+    own is not a deliverable, so each row carries the package, its checksum and a
+    download URL when one exists, and says so plainly when one does not.
+    """
+    wanted = ["PASS", "BORDERLINE"] if include_borderline else ["PASS"]
+    with session() as s:
+        rows = s.execute(
+            select(Strategy, Verdict)
+            .join(Verdict, Verdict.strategy_id == Strategy.id)
+            .where(Verdict.verdict.in_(wanted))
+            .order_by(Verdict.score.desc(), Verdict.created_at.desc())
+            .limit(limit)
+        ).all()
+
+        out: list[dict[str, Any]] = []
+        for strategy, verdict in rows:
+            delivery = s.scalars(
+                select(Delivery)
+                .where(Delivery.strategy_id == strategy.id)
+                .order_by(Delivery.created_at.desc())
+                .limit(1)
+            ).first()
+
+            # Prefer the out-of-sample numbers - the only ones that mean anything.
+            run = s.scalars(
+                select(BacktestRun)
+                .where(
+                    BacktestRun.strategy_id == strategy.id,
+                    BacktestRun.kind.in_(["tuned_oos", "oos"]),
+                )
+                .order_by(BacktestRun.created_at.desc())
+                .limit(1)
+            ).first()
+            metrics = dict(run.metrics or {}) if run else {}
+
+            remote = (delivery.channels or {}).get("object_store") if delivery else None
+            out.append(
+                {
+                    "strategy_id": strategy.id,
+                    "name": strategy.name,
+                    "style": strategy.style,
+                    "asset": strategy.asset,
+                    "timeframe": strategy.timeframe,
+                    "generation": strategy.generation,
+                    "origin": strategy.origin,
+                    "verdict": verdict.verdict,
+                    "score": verdict.score,
+                    "long_term_viable": verdict.long_term_viable,
+                    "summary": verdict.summary,
+                    "reasons": verdict.reasons,
+                    "judged_at": verdict.created_at.isoformat() if verdict.created_at else None,
+                    "metrics": {
+                        k: metrics.get(k)
+                        for k in (
+                            "trades",
+                            "sharpe",
+                            "profit_factor",
+                            "win_rate_pct",
+                            "expectancy_r",
+                            "max_drawdown_pct",
+                            "total_return_pct",
+                        )
+                    },
+                    "package": (
+                        {
+                            "name": delivery.package_name,
+                            "size_bytes": delivery.size_bytes,
+                            "checksum": delivery.checksum,
+                            "status": delivery.status,
+                            "download": f"/api/deliveries/{delivery.id}/download",
+                            "remote_url": (remote or {}).get("url"),
+                        }
+                        if delivery
+                        else None
+                    ),
+                }
+            )
+        return out

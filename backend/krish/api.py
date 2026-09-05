@@ -267,6 +267,15 @@ def create_app(factory: Factory | None = None) -> FastAPI:
         except PineUnsupported as exc:
             raise HTTPException(422, f"not exportable to Pine Script: {exc}") from exc
 
+    @app.get("/api/vault")
+    async def vault(
+        include_borderline: bool = True, limit: int = Query(60, le=300)
+    ) -> list[dict[str, Any]]:
+        """Strategies that cleared the judge, each with its download link."""
+        return await store.in_db(
+            store.accepted_strategies, include_borderline=include_borderline, limit=limit
+        )
+
     @app.get("/api/ledger")
     async def ledger(asset: str | None = None, limit: int = Query(200, le=1000)):
         return await store.in_db(store.judged_strategies, asset, limit)
