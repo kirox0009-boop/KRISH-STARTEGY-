@@ -34,6 +34,20 @@ delivery:
   telegram_enabled: false
   package_name_template: "KRISH_{asset}_{style}_{name}_v{version}"
 
+# Where the bulk lives. `local` keeps everything on the VPS disk (default, zero
+# setup). `s3` pushes the price cache and delivered ZIPs to any S3-compatible
+# store — Cloudflare R2, Backblaze B2, Wasabi, MinIO, AWS — so the VPS only holds
+# what it is actively using. Credentials go in .env, never here.
+# The database is separate: point DATABASE_URL at a managed Postgres and the
+# blackboard leaves the box too. See docs/CLOUD_STORAGE.md.
+storage:
+  backend: local               # local | s3
+  prefix: krish                # folder inside the bucket
+  offload_price_cache: true    # upload Parquet, re-download on demand
+  upload_packages: true        # upload delivered ZIPs
+  keep_local_packages: true    # false = delete the local ZIP once it is uploaded
+  local_cache_keep_days: 14    # prune local Parquet older than this IF uploaded
+
 # Housekeeping. The factory runs forever, so disk use has to be bounded.
 # Metrics and verdicts are NEVER deleted by these settings - only the bulky
 # per-bar detail (equity curves, trade lists) of work that was already rejected.

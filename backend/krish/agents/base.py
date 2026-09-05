@@ -50,6 +50,10 @@ class BaseAgent:
             squad=self.squad,
             subscriptions=[str(t) for t in self.subscribes],
         )
+        # Replicas of the same class share one consumer group, so work is
+        # distributed rather than duplicated. The instance name is the consumer
+        # id within that group.
+        self.group = type(self).name
         self._stop = asyncio.Event()
         self._paused = asyncio.Event()
         self._paused.set()  # set == not paused
@@ -73,7 +77,7 @@ class BaseAgent:
         self.log("started", level="info")
         try:
             topics = [str(t) for t in self.subscribes]
-            async for msg in self.bus.subscribe(self.name, topics):
+            async for msg in self.bus.subscribe(self.group, topics, consumer=self.name):
                 if self._stop.is_set():
                     break
                 await self._paused.wait()
@@ -100,7 +104,12 @@ class BaseAgent:
             await asyncio.sleep(HEARTBEAT_SECONDS)
 
     async def _control_loop(self) -> None:
-        """React to pause/resume/kill/reload sent from the control room."""
+        """React to pause/resume/kill/reload sent from the control room.
+
+        Deliberately a group of one per *instance*: control is a broadcast, so
+        pausing "tester" has to reach all four replicas, not just whichever one
+        happened to pull the message.
+        """
         async for msg in self.bus.subscribe(f"{self.name}-ctl", [Topic.AGENT_CONTROL]):
             target = msg.payload.get("agent")
             if target not in (None, "*", self.name):

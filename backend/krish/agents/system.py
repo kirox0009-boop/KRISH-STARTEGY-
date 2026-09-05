@@ -25,6 +25,7 @@ from ..config import ARTIFACT_DIR, CACHE_DIR, DATA_DIR, LOG_DIR, PACKAGE_DIR, fa
 from ..genome import RECIPES
 from ..messages import Message, Topic, new_id
 from ..registry import registry
+from ..storage import cache_key, store
 from ..store import (
     counts,
     database_bytes,
@@ -369,6 +370,7 @@ def storage_report() -> dict[str, Any]:
         "disk_total_gb": round(usage.total / 1e9, 2),
         # The price cache is bounded: one file per asset+timeframe, overwritten
         # on refresh. The database is the part that grows with every experiment.
+        "object_store": store().describe(),
         "notes": {
             "price_cache": "bounded — one file per asset/timeframe, overwritten on refresh",
             "logs": "bounded — rotates at 20 MB, keeps 5 files (~120 MB ceiling)",
@@ -401,6 +403,11 @@ class LibrarianAgent(BaseAgent):
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self._stop.wait(), timeout=max(minutes, 1.0) * 60.0)
 
+    @staticmethod
+    def _prune_local_cache() -> int:
+        keep = float(factory_section("storage").get("local_cache_keep_days", 14))
+        return _prune_local_cache_files(keep)
+
     async def _sweep(self) -> None:
         cfg = factory_section("retention")
         before = await in_db(storage_report)
@@ -410,6 +417,7 @@ class LibrarianAgent(BaseAgent):
             strip_rejected_details, float(cfg.get("rejected_detail_keep_hours", 12))
         )
         deleted = await in_db(delete_old_rejected, float(cfg.get("rejected_keep_days", 60)))
+        cache_freed = await asyncio.to_thread(self._prune_local_cache)
 
         did_work = events or stripped or deleted.get("strategies")
         if did_work and cfg.get("vacuum", True):
@@ -424,6 +432,11 @@ class LibrarianAgent(BaseAgent):
                 f"deleted {deleted.get('strategies', 0)} old rejected strategies; "
                 f"database {before['database_mb']}MB -> {after['database_mb']}MB "
                 f"(freed {freed}MB)"
+            )
+        if cache_freed:
+            self.log(
+                f"released {cache_freed} local price-cache file(s) that are safely in "
+                "object storage; they will be re-downloaded on demand"
             )
         self.progress(
             f"disk: db {after['database_mb']}MB, cache {after['price_cache_mb']}MB, "
@@ -445,3 +458,33 @@ __all__ = [
     "OrchestratorAgent",
     "storage_report",
 ]
+
+
+def _cache_files() -> list[Path]:
+    return sorted(CACHE_DIR.glob("*.parquet"))
+
+
+def _prune_local_cache_files(keep_days: float) -> int:
+    """Delete local Parquet only when the object store definitely has a copy.
+
+    Never deletes anything that is not verifiably elsewhere — a re-download is
+    cheap, re-fetching years of history from a rate-limited provider is not, and
+    losing it outright would be worse than a full disk.
+    """
+    obj = store()
+    if not obj.enabled or keep_days <= 0:
+        return 0
+    cutoff = time.time() - keep_days * 86400
+    freed = 0
+    for path in _cache_files():
+        if path.stat().st_mtime > cutoff:
+            continue
+        stem = path.stem  # e.g. GOLD_H1
+        asset, _, timeframe = stem.rpartition("_")
+        if not asset or not timeframe:
+            continue
+        if obj.exists(cache_key(asset, timeframe)):
+            with contextlib.suppress(OSError):
+                path.unlink()
+                freed += 1
+    return freed
