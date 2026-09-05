@@ -126,6 +126,7 @@ class MemoryBus(Bus):
     def __init__(self) -> None:
         super().__init__()
         self._queues: dict[str, asyncio.Queue[Message]] = {}
+        self._refs: dict[str, int] = {}
 
     async def _deliver(self, msg: Message) -> None:
         for q in list(self._queues.values()):
@@ -134,16 +135,26 @@ class MemoryBus(Bus):
     async def subscribe(  # type: ignore[override]
         self, group: str, topics: Iterable[str], *, consumer: str = "main"
     ) -> AsyncIterator[Message]:
+        """Competing consumers: every member of ``group`` shares one queue.
+
+        This is what makes replicas useful. Four testers in the group "tester"
+        take one strategy each; they do not each run the same backtest. The queue
+        is keyed by group only, and refcounted so one replica stopping does not
+        pull the queue out from under its siblings.
+        """
         wanted = {str(t) for t in topics}
-        key = f"{group}:{consumer}"
-        q: asyncio.Queue[Message] = self._queues.setdefault(key, asyncio.Queue())
+        q: asyncio.Queue[Message] = self._queues.setdefault(group, asyncio.Queue())
+        self._refs[group] = self._refs.get(group, 0) + 1
         try:
             while not self._closed:
                 msg = await q.get()
                 if not wanted or msg.topic in wanted:
                     yield msg
         finally:
-            self._queues.pop(key, None)
+            self._refs[group] = max(0, self._refs.get(group, 1) - 1)
+            if not self._refs[group]:
+                self._queues.pop(group, None)
+                self._refs.pop(group, None)
 
 
 # --------------------------------------------------------------------------- #
