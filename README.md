@@ -80,6 +80,12 @@ make backtest FILE=var/packages/.../strategy.json
 
 ## Deploy on your VPS (24/7)
 
+**Windows VPS?** Follow [`docs/INSTALL_WINDOWS.md`](docs/INSTALL_WINDOWS.md) — it
+runs natively there (no Docker, no Redis, no Postgres needed), which also means the
+same box can later host the MetaTrader 5 bridge.
+
+**Linux VPS:**
+
 ```bash
 git clone <this repo> /opt/krish && cd /opt/krish
 cp .env.example .env && $EDITOR .env         # optional keys; nothing is mandatory

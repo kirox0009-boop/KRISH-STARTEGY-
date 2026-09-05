@@ -13,6 +13,8 @@ import asyncio
 import contextlib
 import itertools
 import os
+import platform
+import shutil
 import time
 from collections import defaultdict
 from typing import Any
@@ -295,22 +297,33 @@ class MonitorAgent(BaseAgent):
 
     @staticmethod
     def snapshot() -> dict[str, Any]:
-        """System health, also served by the API's /api/health endpoint."""
-        try:
-            load1, load5, load15 = os.getloadavg()
-        except OSError:  # pragma: no cover
+        """System health, also served by the API's /api/health endpoint.
+
+        Cross-platform on purpose: the VPS may well be Windows, because that is
+        where MetaTrader 5 runs.
+        """
+        # os.getloadavg does not exist on Windows at all (not just fail).
+        if hasattr(os, "getloadavg"):
+            try:
+                load1, load5, load15 = os.getloadavg()
+            except OSError:  # pragma: no cover
+                load1 = load5 = load15 = 0.0
+        else:
             load1 = load5 = load15 = 0.0
-        stat = os.statvfs(str(DATA_DIR))
-        free_pct = round(stat.f_bavail / max(stat.f_blocks, 1) * 100, 1)
+
+        usage = shutil.disk_usage(str(DATA_DIR))  # works on Windows and POSIX
         return {
             "registry": registry().summary(),
             "agents": registry().snapshot(),
             "db": counts(),
             "load": {"1m": round(load1, 2), "5m": round(load5, 2), "15m": round(load15, 2)},
+            "load_available": hasattr(os, "getloadavg"),
             "cpus": os.cpu_count() or 1,
+            "platform": platform.system(),
             "disk": {
-                "free_pct": free_pct,
-                "free_gb": round(stat.f_bavail * stat.f_frsize / 1e9, 2),
+                "free_pct": round(usage.free / max(usage.total, 1) * 100, 1),
+                "free_gb": round(usage.free / 1e9, 2),
+                "total_gb": round(usage.total / 1e9, 2),
             },
         }
 
