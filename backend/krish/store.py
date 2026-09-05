@@ -12,7 +12,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import (
@@ -23,7 +24,9 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    cast,
     create_engine,
+    delete,
     func,
     select,
 )
@@ -446,3 +449,97 @@ def judged_strategies(asset: str | None = None, limit: int = 500) -> list[dict[s
                 }
             )
         return out
+
+
+# --------------------------------------------------------------------------- #
+# housekeeping / retention
+#
+# A factory that runs forever writes forever. Left alone, the blackboard grows by
+# roughly 130 KB per strategy - mostly equity curves and trade lists - which on a
+# busy box is several GB a month. The librarian agent calls these to keep the disk
+# flat without throwing away the numbers that matter: metrics and verdicts are
+# always kept, only the bulky per-bar detail of *rejected* work is discarded.
+# --------------------------------------------------------------------------- #
+
+
+def _cutoff(*, days: float = 0.0, hours: float = 0.0) -> datetime:
+    return _utcnow() - timedelta(days=days, hours=hours)
+
+
+def prune_events(keep_days: float) -> int:
+    """Drop flight-recorder rows older than ``keep_days``."""
+    if keep_days <= 0:
+        return 0
+    with session() as s:
+        result = s.execute(delete(AgentEvent).where(AgentEvent.ts < _cutoff(days=keep_days)))
+        return int(result.rowcount or 0)
+
+
+def strip_rejected_details(keep_hours: float) -> int:
+    """Blank the heavy columns on runs belonging to rejected strategies.
+
+    Keeps the row and its metrics, so the experiment ledger and everything the
+    memory agent learns from stay intact. Only the equity curve and trade list -
+    the parts nobody re-reads for a rejected idea - are released.
+    """
+    if keep_hours <= 0:
+        return 0
+    cutoff = _cutoff(hours=keep_hours)
+    with session() as s:
+        rejected = select(Verdict.strategy_id).where(Verdict.verdict == "REJECT")
+        rows = s.scalars(
+            select(BacktestRun).where(
+                BacktestRun.strategy_id.in_(rejected),
+                BacktestRun.created_at < cutoff,
+                func.length(func.coalesce(cast(BacktestRun.equity, String), "")) > 2,
+            )
+        ).all()
+        for row in rows:
+            row.equity = []
+            row.trades = []
+        return len(rows)
+
+
+def delete_old_rejected(keep_days: float) -> dict[str, int]:
+    """Remove rejected strategies entirely once they are old enough to be noise."""
+    if keep_days <= 0:
+        return {"strategies": 0, "runs": 0, "verdicts": 0}
+    cutoff = _cutoff(days=keep_days)
+    with session() as s:
+        ids = list(
+            s.scalars(
+                select(Verdict.strategy_id).where(
+                    Verdict.verdict == "REJECT", Verdict.created_at < cutoff
+                )
+            ).all()
+        )
+        if not ids:
+            return {"strategies": 0, "runs": 0, "verdicts": 0}
+        runs = s.execute(delete(BacktestRun).where(BacktestRun.strategy_id.in_(ids)))
+        verdicts = s.execute(delete(Verdict).where(Verdict.strategy_id.in_(ids)))
+        strategies = s.execute(delete(Strategy).where(Strategy.id.in_(ids)))
+        return {
+            "strategies": int(strategies.rowcount or 0),
+            "runs": int(runs.rowcount or 0),
+            "verdicts": int(verdicts.rowcount or 0),
+        }
+
+
+def vacuum() -> bool:
+    """Return freed pages to the filesystem. SQLite only; a no-op elsewhere."""
+    if _engine is None:
+        init_db()
+    assert _engine is not None
+    if _engine.dialect.name != "sqlite":
+        return False
+    with _engine.connect() as conn:
+        conn.exec_driver_sql("VACUUM")
+    return True
+
+
+def database_bytes() -> int:
+    url = settings().database_url
+    if not url.startswith("sqlite"):
+        return 0
+    path = Path(url.split("sqlite:///")[-1])
+    return path.stat().st_size if path.exists() else 0

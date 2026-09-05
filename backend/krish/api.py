@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 from . import store
 from .agents.data import data_health
-from .agents.system import MonitorAgent
+from .agents.system import MonitorAgent, storage_report
 from .assets import add_asset, remove_asset, universe
 from .bus import bus
 from .compilers.pine import PineUnsupported, to_pine
@@ -36,6 +36,54 @@ from .runtime import Factory
 log = logging.getLogger("krish.api")
 
 WEB_DIR = Path(__file__).parent / "web"
+
+
+# --------------------------------------------------------------------------- #
+# Request bodies.
+#
+# These MUST live at module level. This file uses `from __future__ import
+# annotations`, so every annotation is a string that FastAPI resolves against the
+# module's globals. A model defined inside create_app() is invisible there, and
+# FastAPI silently downgrades it to a *query* parameter - which makes every
+# control endpoint reject its JSON body with 422.
+# --------------------------------------------------------------------------- #
+
+
+class ConfigPatch(BaseModel):
+    data: dict[str, Any]
+
+
+class AssetIn(BaseModel):
+    key: str
+    name: str
+    asset_class: str = "unknown"
+    yfinance: str | None = None
+    ccxt: str | None = None
+    mt5: str | None = None
+    tradingview: str | None = None
+    tick_size: float = 0.01
+    point_value: float = 1.0
+    session: str = "24h"
+    timeframes: list[str] = ["H1", "D1"]
+    spread_points: float = 10.0
+    commission_per_lot: float = 0.0
+    slippage_points: float = 5.0
+
+
+class AgentControl(BaseModel):
+    agent: str = "*"
+    action: str  # pause | resume | stop | reload
+
+
+class CycleRequest(BaseModel):
+    asset: str | None = None
+    timeframe: str | None = None
+    count: int = 0
+
+
+class AutomateRequest(BaseModel):
+    target: str = "mt5"  # mt5 | tradingview
+    mode: str = "demo"  # demo | live
 
 
 def create_app(factory: Factory | None = None) -> FastAPI:
@@ -75,6 +123,11 @@ def create_app(factory: Factory | None = None) -> FastAPI:
     @app.get("/api/health/data")
     async def health_data() -> list[dict[str, Any]]:
         return await asyncio.to_thread(data_health)
+
+    @app.get("/api/health/storage")
+    async def health_storage() -> dict[str, Any]:
+        """Where the disk is going, and what is bounded vs growing."""
+        return await asyncio.to_thread(storage_report)
 
     @app.get("/api/agents")
     async def agents() -> list[dict[str, Any]]:
@@ -281,9 +334,6 @@ def create_app(factory: Factory | None = None) -> FastAPI:
     # configuration (editable from the UI)
     # ------------------------------------------------------------------ #
 
-    class ConfigPatch(BaseModel):
-        data: dict[str, Any]
-
     @app.get("/api/config/{name}")
     async def get_config(name: str) -> dict[str, Any]:
         if name not in {"factory", "assets"}:
@@ -306,22 +356,6 @@ def create_app(factory: Factory | None = None) -> FastAPI:
             )
         )
         return {"ok": True, "file": name}
-
-    class AssetIn(BaseModel):
-        key: str
-        name: str
-        asset_class: str = "unknown"
-        yfinance: str | None = None
-        ccxt: str | None = None
-        mt5: str | None = None
-        tradingview: str | None = None
-        tick_size: float = 0.01
-        point_value: float = 1.0
-        session: str = "24h"
-        timeframes: list[str] = ["H1", "D1"]
-        spread_points: float = 10.0
-        commission_per_lot: float = 0.0
-        slippage_points: float = 5.0
 
     @app.get("/api/assets")
     async def get_assets() -> list[dict[str, Any]]:
@@ -395,10 +429,6 @@ def create_app(factory: Factory | None = None) -> FastAPI:
     # control
     # ------------------------------------------------------------------ #
 
-    class AgentControl(BaseModel):
-        agent: str = "*"
-        action: str  # pause | resume | stop | reload
-
     @app.post("/api/control/agent")
     async def control_agent(body: AgentControl) -> dict[str, Any]:
         if body.action not in {"pause", "resume", "stop", "kill", "reload"}:
@@ -412,11 +442,6 @@ def create_app(factory: Factory | None = None) -> FastAPI:
             )
         )
         return {"ok": True, **body.model_dump()}
-
-    class CycleRequest(BaseModel):
-        asset: str | None = None
-        timeframe: str | None = None
-        count: int = 0
 
     @app.post("/api/control/cycle")
     async def control_cycle(body: CycleRequest) -> dict[str, Any]:
@@ -483,10 +508,6 @@ def create_app(factory: Factory | None = None) -> FastAPI:
             )
         )
         return {"ok": True, "strategy_id": strategy_id}
-
-    class AutomateRequest(BaseModel):
-        target: str = "mt5"  # mt5 | tradingview
-        mode: str = "demo"  # demo | live
 
     @app.post("/api/control/automate/{strategy_id}")
     async def automate(strategy_id: str, body: AutomateRequest) -> dict[str, Any]:

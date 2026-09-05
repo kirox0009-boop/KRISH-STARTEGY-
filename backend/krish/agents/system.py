@@ -17,14 +17,26 @@ import platform
 import shutil
 import time
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 from ..assets import universe
-from ..config import DATA_DIR, factory_section
+from ..config import ARTIFACT_DIR, CACHE_DIR, DATA_DIR, LOG_DIR, PACKAGE_DIR, factory_section
 from ..genome import RECIPES
 from ..messages import Message, Topic, new_id
 from ..registry import registry
-from ..store import counts, in_db, judged_strategies, priors_for, upsert_prior
+from ..store import (
+    counts,
+    database_bytes,
+    delete_old_rejected,
+    in_db,
+    judged_strategies,
+    priors_for,
+    prune_events,
+    strip_rejected_details,
+    upsert_prior,
+    vacuum,
+)
 from .base import BaseAgent
 
 
@@ -328,4 +340,108 @@ class MonitorAgent(BaseAgent):
         }
 
 
-__all__ = ["MemoryAgent", "MonitorAgent", "OrchestratorAgent"]
+def storage_report() -> dict[str, Any]:
+    """Where the disk is going. Served by /api/health/storage and the dashboard."""
+
+    def folder_bytes(path: Path) -> int:
+        if not path.exists():
+            return 0
+        return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+    db = database_bytes()
+    cache = folder_bytes(CACHE_DIR)
+    packages = folder_bytes(PACKAGE_DIR)
+    logs = folder_bytes(LOG_DIR)
+    artifacts = folder_bytes(ARTIFACT_DIR)
+    usage = shutil.disk_usage(str(DATA_DIR))
+    row_counts = counts()
+    strategies = max(row_counts.get("strategies", 0), 1)
+
+    return {
+        "database_mb": round(db / 1e6, 2),
+        "price_cache_mb": round(cache / 1e6, 2),
+        "packages_mb": round(packages / 1e6, 2),
+        "logs_mb": round(logs / 1e6, 2),
+        "artifacts_mb": round(artifacts / 1e6, 2),
+        "total_mb": round((db + cache + packages + logs + artifacts) / 1e6, 2),
+        "kb_per_strategy": round(db / strategies / 1e3, 1),
+        "disk_free_gb": round(usage.free / 1e9, 2),
+        "disk_total_gb": round(usage.total / 1e9, 2),
+        # The price cache is bounded: one file per asset+timeframe, overwritten
+        # on refresh. The database is the part that grows with every experiment.
+        "notes": {
+            "price_cache": "bounded — one file per asset/timeframe, overwritten on refresh",
+            "logs": "bounded — rotates at 20 MB, keeps 5 files (~120 MB ceiling)",
+            "database": "grows with every experiment; the librarian agent prunes it",
+        },
+    }
+
+
+class LibrarianAgent(BaseAgent):
+    name = "librarian"
+    role = "Librarian"
+    squad = "system"
+    description = "Keeps disk use flat: prunes old detail so the factory can run for years."
+    subscribes = (Topic.CONFIG_RELOAD,)
+
+    async def setup(self) -> None:
+        self._tasks.append(asyncio.create_task(self._loop(), name="librarian-loop"))
+
+    async def handle(self, msg: Message) -> None:
+        self.log("retention settings reloaded")
+
+    async def _loop(self) -> None:
+        # First pass shortly after boot, so a box that has been off for a while
+        # gets tidied before it starts producing again.
+        await asyncio.sleep(60.0)
+        while not self._stop.is_set():
+            with contextlib.suppress(Exception):
+                await self._sweep()
+            minutes = float(factory_section("retention").get("prune_interval_minutes", 30))
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._stop.wait(), timeout=max(minutes, 1.0) * 60.0)
+
+    async def _sweep(self) -> None:
+        cfg = factory_section("retention")
+        before = await in_db(storage_report)
+
+        events = await in_db(prune_events, float(cfg.get("events_keep_days", 7)))
+        stripped = await in_db(
+            strip_rejected_details, float(cfg.get("rejected_detail_keep_hours", 12))
+        )
+        deleted = await in_db(delete_old_rejected, float(cfg.get("rejected_keep_days", 60)))
+
+        did_work = events or stripped or deleted.get("strategies")
+        if did_work and cfg.get("vacuum", True):
+            await in_db(vacuum)
+
+        after = await in_db(storage_report)
+        freed = round(before["database_mb"] - after["database_mb"], 2)
+
+        if did_work:
+            self.log(
+                f"pruned {events} events, stripped detail from {stripped} rejected runs, "
+                f"deleted {deleted.get('strategies', 0)} old rejected strategies; "
+                f"database {before['database_mb']}MB -> {after['database_mb']}MB "
+                f"(freed {freed}MB)"
+            )
+        self.progress(
+            f"disk: db {after['database_mb']}MB, cache {after['price_cache_mb']}MB, "
+            f"{after['disk_free_gb']}GB free"
+        )
+
+        if after["disk_free_gb"] < 2.0:
+            self.log(
+                f"only {after['disk_free_gb']}GB of disk left — lower "
+                f"retention.rejected_keep_days in config/factory.yaml",
+                level="error",
+            )
+
+
+__all__ = [
+    "LibrarianAgent",
+    "MemoryAgent",
+    "MonitorAgent",
+    "OrchestratorAgent",
+    "storage_report",
+]

@@ -150,6 +150,11 @@
   </section>
 
   <section class="card">
+    <h2>Disk</h2>
+    <div id="storage" class="muted">loading…</div>
+  </section>
+
+  <section class="card">
     <h2>Data health</h2>
     <div style="max-height:280px;overflow:auto">
       <table><thead><tr><th>Asset</th><th>TF</th><th>Bars</th><th>Age</th></tr></thead>
@@ -238,13 +243,30 @@ function renderAgents(agents) {
 }
 
 async function refreshTables() {
-  const [projects, strategies, deliveries, data, priors] = await Promise.all([
+  const [projects, strategies, deliveries, data, priors, disk] = await Promise.all([
     fetch("/api/projects?limit=200").then(r => r.json()),
     fetch(`/api/strategies?limit=120${$("assetFilter").value ? "&asset=" + $("assetFilter").value : ""}`).then(r => r.json()),
     fetch("/api/deliveries").then(r => r.json()),
     fetch("/api/health/data").then(r => r.json()),
     fetch("/api/priors").then(r => r.json()),
+    fetch("/api/health/storage").then(r => r.json()),
   ]);
+
+  const rows = [
+    ["database (experiments)", disk.database_mb, "grows — librarian prunes it"],
+    ["price cache", disk.price_cache_mb, disk.notes.price_cache],
+    ["delivered packages", disk.packages_mb, "one ZIP per accepted strategy"],
+    ["logs", disk.logs_mb, disk.notes.logs],
+  ];
+  $("storage").innerHTML = `
+    <table><thead><tr><th>what</th><th>size</th><th>behaviour</th></tr></thead><tbody>
+    ${rows.map(([k, v, note]) => `<tr><td>${k}</td><td>${fmt(v, 1)} MB</td>
+      <td class="muted" style="font-size:11px">${escapeHtml(note)}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="muted" style="margin-top:8px">
+      total <b>${fmt(disk.total_mb, 1)} MB</b> · ${fmt(disk.kb_per_strategy, 0)} KB per strategy ·
+      <b>${fmt(disk.disk_free_gb, 1)} GB</b> free of ${fmt(disk.disk_total_gb, 0)} GB
+    </div>`;
 
   const byStage = {};
   projects.forEach(p => { byStage[p.stage] = (byStage[p.stage] || 0) + 1; });

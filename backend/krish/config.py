@@ -103,11 +103,22 @@ def load_yaml(name: str, *, refresh: bool = False) -> dict[str, Any]:
         return _yaml_cache[name]
 
 
+#: Written to the top of any config file the UI rewrites. PyYAML cannot preserve
+#: comments on a round trip, so instead of silently deleting the guidance that was
+#: in the file, we say plainly what happened and where the original lives.
+_REWRITE_HEADER = """\
+# This file was last written by KRISH (control room / API).
+# Comments are not preserved when the UI saves it - see the original, fully
+# commented version in git history or in the repository's config/ directory.
+"""
+
+
 def save_yaml(name: str, data: dict[str, Any]) -> None:
     """Persist a config file and invalidate the cache (used by the UI)."""
     path = CONFIG_DIR / f"{name}.yaml"
     with _yaml_lock:
         with path.open("w", encoding="utf-8") as fh:
+            fh.write(_REWRITE_HEADER)
             yaml.safe_dump(data, fh, sort_keys=False, allow_unicode=True)
         _yaml_cache[name] = data
 
