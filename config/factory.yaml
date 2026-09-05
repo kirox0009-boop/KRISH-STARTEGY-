@@ -16,13 +16,30 @@ backtest:
 
 judge:
   # A strategy must clear ALL of these on OUT-OF-SAMPLE data.
-  min_oos_sharpe: 0.8
-  min_oos_profit_factor: 1.15
+  min_oos_sharpe: 1.0
+  min_oos_profit_factor: 2.0    # for every 1 lost, at least 2 won
   max_oos_drawdown_pct: 25.0
   min_oos_trades: 30
-  min_expectancy_r: 0.05        # average win in R multiples
+  min_expectancy_r: 0.15        # average result per trade, in R multiples
   max_is_oos_degradation: 0.5   # OOS Sharpe must be >= 50% of IS Sharpe
   borderline_band: 0.15         # within 15% of thresholds -> BORDERLINE, not REJECT
+
+  # Win rate. 0 disables the check.
+  # WARNING before you raise this: profit factor and win rate pull in opposite
+  # directions. Trend strategies win ~35% of trades and still reach PF 2+ because
+  # the winners are large. Demanding 50%+ win rate AND PF 2+ rules out that whole
+  # family and leaves only mean-reversion, which tends to have fat tail losses.
+  # If you want "more wins than losses", set 50 and expect far fewer passes.
+  min_win_rate_pct: 0
+
+  # Growth. Computed from the out-of-sample CAGR, so it is a *sustained* rate,
+  # not one lucky month.
+  # Reality check: 5%/month is roughly 80%/year and already excellent.
+  # 100%/month (doubling) is ~120,000%/year - no strategy sustains that. Setting
+  # it there will either pass nothing, or pass only over-fitted lottery tickets
+  # that blow up live. The judge will not lie to you about this: it just applies
+  # whatever number you put here.
+  min_monthly_return_pct: 3.0
 
 tuner:
   trials: 40
