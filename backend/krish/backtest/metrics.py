@@ -101,6 +101,11 @@ def compute_metrics(
         "top_trade_profit_share": round(top_trade_share, 3),
         "gross_profit": round(gross_win, 2),
         "gross_loss": round(gross_loss, 2),
+        # Sustained monthly rate derived from CAGR, not the best month. This is
+        # the number to judge "how fast does it grow" against.
+        "avg_monthly_return_pct": round(
+            ((1 + _safe(cagr)) ** (1 / 12) - 1) * 100 if cagr > -1 else -100.0, 3
+        ),
         "exposure_pct": round(exposure_bars / bars * 100, 2) if bars else 0.0,
         "bars": bars,
         "years": round(years, 2),

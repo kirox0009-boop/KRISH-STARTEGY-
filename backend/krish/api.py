@@ -30,6 +30,7 @@ from .agents.data import data_health
 from .agents.system import MonitorAgent, storage_report
 from .assets import add_asset, remove_asset, universe
 from .bus import bus
+from .compilers.mql5 import Mql5Unsupported, to_mql5
 from .compilers.pine import PineUnsupported, to_pine
 from .config import PACKAGE_DIR, factory_config, load_yaml, save_yaml
 from .indicators import indicators_by_family
@@ -266,6 +267,22 @@ def create_app(factory: Factory | None = None) -> FastAPI:
             return to_pine(StrategyIR.model_validate(row.ir))
         except PineUnsupported as exc:
             raise HTTPException(422, f"not exportable to Pine Script: {exc}") from exc
+
+    @app.get("/api/strategies/{strategy_id}/mql5", response_class=PlainTextResponse)
+    async def strategy_mql5(strategy_id: str) -> PlainTextResponse:
+        """The MetaTrader 5 Expert Advisor, as a downloadable .mq5 file."""
+        row = await store.in_db(store.get_strategy, strategy_id)
+        if row is None:
+            raise HTTPException(404, "strategy not found")
+        try:
+            code = to_mql5(StrategyIR.model_validate(row.ir))
+        except Mql5Unsupported as exc:
+            raise HTTPException(422, f"not exportable to MQL5: {exc}") from exc
+        safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in row.name)
+        return PlainTextResponse(
+            code,
+            headers={"Content-Disposition": f'attachment; filename="{safe}.mq5"'},
+        )
 
     @app.get("/api/vault")
     async def vault(
@@ -509,6 +526,17 @@ def create_app(factory: Factory | None = None) -> FastAPI:
         if row is None:
             raise HTTPException(404, "strategy not found")
         verdict = await store.in_db(store.verdict_for_strategy, strategy_id)
+
+        # Hand the doc writer the same shape the pipeline would have produced, so a
+        # manually requested package is indistinguishable from an automatic one.
+        runs = await store.in_db(store.runs_for_strategy, strategy_id)
+        metrics: dict[str, Any] = {}
+        for run in runs:
+            if run.kind in {"full", "is", "oos"} or run.kind == "tuned_oos":
+                metrics[run.kind] = run.metrics
+        if "tuned_oos" in metrics:
+            metrics.setdefault("oos", metrics["tuned_oos"])
+
         await bus().publish(
             Message(
                 topic=Topic.PACKAGE_REQUEST,
@@ -518,15 +546,17 @@ def create_app(factory: Factory | None = None) -> FastAPI:
                 project_id=row.project_id,
                 payload={
                     "strategy_id": strategy_id,
+                    "name": row.name,
+                    "asset": row.asset,
+                    "timeframe": row.timeframe,
                     "ir": row.ir,
                     "verdict": verdict.verdict if verdict else "MANUAL",
                     "score": verdict.score if verdict else None,
+                    "long_term_viable": verdict.long_term_viable if verdict else False,
                     "summary": verdict.summary if verdict else "Packaged on operator request.",
                     "checks": verdict.checks if verdict else {},
                     "reasons": verdict.reasons if verdict else [],
-                    "dossier_md": verdict.summary if verdict else "",
-                    "instructions_md": "",
-                    "metrics": {},
+                    "metrics": metrics,
                 },
             )
         )

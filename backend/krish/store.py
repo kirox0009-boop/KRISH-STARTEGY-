@@ -556,13 +556,37 @@ def accepted_strategies(
     """
     wanted = ["PASS", "BORDERLINE"] if include_borderline else ["PASS"]
     with session() as s:
+        # A strategy can be judged more than once - re-running a backtest from the
+        # UI produces a fresh verdict. Only the newest one counts, otherwise the
+        # same strategy appears in the vault several times.
+        newest = (
+            select(
+                Verdict.strategy_id.label("sid"),
+                func.max(Verdict.created_at).label("latest"),
+            )
+            .group_by(Verdict.strategy_id)
+            .subquery()
+        )
         rows = s.execute(
             select(Strategy, Verdict)
             .join(Verdict, Verdict.strategy_id == Strategy.id)
+            .join(
+                newest,
+                (newest.c.sid == Verdict.strategy_id) & (newest.c.latest == Verdict.created_at),
+            )
             .where(Verdict.verdict.in_(wanted))
             .order_by(Verdict.score.desc(), Verdict.created_at.desc())
             .limit(limit)
         ).all()
+
+        # Belt and braces: identical timestamps on two verdicts would still slip
+        # a duplicate through the join above.
+        seen: set[str] = set()
+        rows = [
+            (st, v)
+            for st, v in rows
+            if not (st.id in seen or seen.add(st.id))  # type: ignore[func-returns-value]
+        ]
 
         out: list[dict[str, Any]] = []
         for strategy, verdict in rows:

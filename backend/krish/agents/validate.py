@@ -785,7 +785,7 @@ class JudgeAgent(BaseAgent):
         oos_sharpe = float(oos.get("sharpe", 0.0))
         retention = oos_sharpe / is_sharpe if is_sharpe > 0 else 0.0
 
-        return {
+        checks: dict[str, dict[str, Any]] = {
             "oos_sharpe": check(
                 "Out-of-sample Sharpe", oos_sharpe, float(t.get("min_oos_sharpe", 0.8))
             ),
@@ -816,6 +816,22 @@ class JudgeAgent(BaseAgent):
                 float(t.get("max_is_oos_degradation", 0.5)),
             ),
         }
+
+        # Optional gates. Zero means "do not test this", so the operator can turn
+        # them on without editing code.
+        min_win = float(t.get("min_win_rate_pct", 0) or 0)
+        if min_win > 0:
+            checks["win_rate"] = check("Win rate %", float(oos.get("win_rate_pct", 0.0)), min_win)
+
+        min_monthly = float(t.get("min_monthly_return_pct", 0) or 0)
+        if min_monthly > 0:
+            checks["monthly_growth"] = check(
+                "Avg monthly return %",
+                float(oos.get("avg_monthly_return_pct", 0.0)),
+                min_monthly,
+            )
+
+        return checks
 
     @staticmethod
     def _reasons(

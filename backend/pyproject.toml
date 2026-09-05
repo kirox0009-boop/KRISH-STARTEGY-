@@ -52,3 +52,10 @@ ignore = [
     # SQLAlchemy's declarative type_annotation_map is a real class attribute.
     "RUF012",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Code generators emit lines of *another* language. Wrapping those strings to fit
+# a Python line limit would either break the generated file or make the template
+# unreadable, so the limit is lifted here only.
+"krish/compilers/mql5.py" = ["E501"]
+"krish/compilers/pine.py" = ["E501"]

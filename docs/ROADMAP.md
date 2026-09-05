@@ -82,13 +82,17 @@ needed to run it, no manual step.
 
 ---
 
-## Phase 5 — Export compilers
+## Phase 5 — Export compilers ✅ (compilers done)
 
-- **MQL5 compiler**: IR → `.mq5` EA (entries, exits, ATR stops, sizing, news
-  filter, magic number, error handling)
-- **Pine Script v5 compiler**: IR → indicator/strategy + alert webhooks
-- golden-file tests: MT5 Strategy Tester results must match Python backtest
-  within tolerance — this is the proof the compilers are honest
+- ✅ **Pine Script v5 compiler**: IR → strategy + alert webhooks
+- ✅ **MQL5 compiler**: IR → `.mq5` Expert Advisor — entries, exits, ATR/percent/
+  point stops, R:R targets, trailing, breakeven, time stop, session and
+  volatility filters, risk-based lot sizing from the symbol's own tick value,
+  magic number, one decision per closed bar. Every parameter is an `input`, so it
+  can be re-optimised in MT5's own Strategy Tester.
+- ⏳ **still to do:** golden-file parity tests, so MT5 Strategy Tester results are
+  automatically compared against the Python backtest within tolerance. Until that
+  exists, the parity check is a manual step and the instructions say so.
 
 **Exit test:** same strategy, three engines, matching equity curves.
 

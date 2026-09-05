@@ -870,6 +870,8 @@ function renderVault(rows){
               : `<button class="sm" onclick="post('/api/control/deliver/${r.strategy_id}')">
                    Package it now</button>`}
         <button class="sm ghost" onclick="showDetail('${r.strategy_id}')">details</button>
+        <a href="/api/strategies/${r.strategy_id}/mql5"
+           title="MetaTrader 5 Expert Advisor"><button class="sm ghost">MT5</button></a>
         <a href="/api/strategies/${r.strategy_id}/pine" target="_blank"
            title="TradingView Pine Script"><button class="sm ghost">Pine</button></a>
       </div>
@@ -962,10 +964,12 @@ async function showDetail(id){
         ${v ? ` · <span class="tagv ${v.verdict}">${v.verdict}</span> score ${fmt(v.score,3)}
           · long-term viable: <b>${v.long_term_viable ? "yes" : "not established"}</b>` : ""}</div></div>
       <div class="row">
-        <a href="/api/strategies/${id}/pine" target="_blank"><button>Pine Script</button></a>
+        <a href="/api/strategies/${id}/mql5"
+           title="Download the MetaTrader 5 Expert Advisor"><button>⬇ MT5 EA (.mq5)</button></a>
+        <a href="/api/strategies/${id}/pine" target="_blank"
+           title="Open the TradingView Pine Script"><button>Pine Script</button></a>
         <button onclick="post('/api/control/retest/${id}')">Re-run backtest</button>
         <button class="gold" onclick="post('/api/control/deliver/${id}')">Package &amp; deliver</button>
-        <button onclick="post('/api/control/automate/${id}',{target:'mt5',mode:'demo'})">Automate on MT5</button>
       </div>
     </div>
     ${v ? `<p style="margin:12px 0 6px">${esc(v.summary)}</p>
