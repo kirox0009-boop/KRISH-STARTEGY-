@@ -1,0 +1,81 @@
+# KRISH tradable universe.
+# Add a new asset here and the whole factory picks it up on the next cycle.
+# `cost` values are what the backtester charges — keep them pessimistic.
+
+defaults:
+  timeframes: [H1, D1]
+  history_years: 8
+  session: "24h"
+
+assets:
+  - key: GOLD
+    name: Gold Spot / USD
+    class: metal
+    yfinance: "GC=F"
+    mt5: "XAUUSD"
+    tradingview: "OANDA:XAUUSD"
+    point_value: 100          # 1 lot = 100 oz
+    tick_size: 0.01
+    cost:
+      spread_points: 25       # 0.25 USD
+      commission_per_lot: 7.0
+      slippage_points: 15
+    timeframes: [M15, H1, H4, D1]
+
+  - key: US30
+    name: Dow Jones 30 Index
+    class: index
+    yfinance: "^DJI"
+    mt5: "US30"
+    tradingview: "CAPITALCOM:US30"
+    point_value: 1
+    tick_size: 0.1
+    cost:
+      spread_points: 40
+      commission_per_lot: 0.0
+      slippage_points: 20
+    timeframes: [M15, H1, H4, D1]
+
+  - key: US100
+    name: Nasdaq 100 Index
+    class: index
+    yfinance: "^NDX"
+    mt5: "US100"
+    tradingview: "CAPITALCOM:US100"
+    point_value: 1
+    tick_size: 0.1
+    cost:
+      spread_points: 20
+      commission_per_lot: 0.0
+      slippage_points: 15
+    timeframes: [M15, H1, H4, D1]
+
+  - key: BITCOIN
+    name: Bitcoin / USD
+    class: crypto
+    yfinance: "BTC-USD"
+    ccxt: "BTC/USDT"
+    mt5: "BTCUSD"
+    tradingview: "BINANCE:BTCUSDT"
+    point_value: 1
+    tick_size: 0.1
+    cost:
+      spread_points: 300
+      commission_per_lot: 0.0
+      slippage_points: 200
+    timeframes: [H1, H4, D1]
+    session: "24x7"
+
+  - key: OIL
+    name: WTI Crude Oil
+    class: energy
+    yfinance: "CL=F"
+    mt5: "USOIL"
+    tradingview: "TVC:USOIL"
+    point_value: 1000
+    tick_size: 0.01
+    cost:
+      spread_points: 3
+      commission_per_lot: 0.0
+      slippage_points: 2
+    timeframes: [H1, H4, D1]

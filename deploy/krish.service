@@ -1,0 +1,38 @@
+# Systemd unit for running KRISH without Docker (bare VPS).
+#
+#   sudo cp deploy/krish.service /etc/systemd/system/krish.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now krish
+#   journalctl -u krish -f
+#
+# Adjust User and WorkingDirectory to match where you cloned the repo.
+
+[Unit]
+Description=KRISH autonomous trading strategy factory
+After=network-online.target redis.service postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=krish
+WorkingDirectory=/opt/krish
+EnvironmentFile=/opt/krish/.env
+ExecStart=/opt/krish/.venv/bin/python -m krish.main run
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+# keep backtests from starving the box
+Nice=5
+CPUWeight=60
+MemoryMax=3G
+
+# basic hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/krish/var /opt/krish/config
+
+[Install]
+WantedBy=multi-user.target

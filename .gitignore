@@ -1,0 +1,31 @@
+# secrets
+.env
+config/gdrive-service-account.json
+*.pem
+
+# runtime state: databases, parquet cache, generated packages, logs
+var/
+*.db
+*.sqlite3
+
+# python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# node (Phase 6 dashboard)
+node_modules/
+.next/
+out/
+
+# editors / os
+.DS_Store
+.idea/
+.vscode/
