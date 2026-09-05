@@ -335,7 +335,9 @@ $("assetFilter").onchange = refreshTables;
     ov.assets.map(a => `<option value="${a.key}">${a.key}</option>`).join("");
   renderStats(ov.counts, ov.agents);
   const health = await fetch("/api/health").then(r => r.json());
-  $("uptime").textContent = `${health.cpus} cpu · load ${fmt(health.load["1m"], 2)} · disk ${health.disk.free_pct}% free`;
+  const load = health.load_available ? ` · load ${fmt(health.load["1m"], 2)}` : "";
+  $("uptime").textContent =
+    `${health.platform || ""} · ${health.cpus} cpu${load} · disk ${health.disk.free_pct}% free`;
   connect();
   refreshTables();
   setInterval(refreshTables, 15000);

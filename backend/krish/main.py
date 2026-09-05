@@ -36,6 +36,27 @@ from .store import counts, init_db
 log = logging.getLogger("krish.main")
 
 
+def _install_signal_handlers(stop: asyncio.Event) -> None:
+    """Graceful shutdown on Ctrl+C / service stop, on Windows and POSIX alike.
+
+    ``loop.add_signal_handler`` is POSIX-only, so Windows falls back to
+    ``signal.signal`` and hops back onto the loop thread-safely.
+    """
+    loop = asyncio.get_running_loop()
+    signals = [signal.SIGINT]
+    if hasattr(signal, "SIGTERM"):
+        signals.append(signal.SIGTERM)
+    if hasattr(signal, "SIGBREAK"):  # Windows: what Ctrl+Break and `taskkill` send
+        signals.append(signal.SIGBREAK)
+
+    for sig in signals:
+        try:
+            loop.add_signal_handler(sig, stop.set)
+        except (NotImplementedError, AttributeError, ValueError):
+            with contextlib.suppress(ValueError, OSError):
+                signal.signal(sig, lambda *_: loop.call_soon_threadsafe(stop.set))
+
+
 async def _serve_api(app, host: str, port: int) -> None:
     config = uvicorn.Config(app, host=host, port=port, log_level=settings().log_level.lower())
     server = uvicorn.Server(config)
@@ -48,10 +69,7 @@ async def cmd_run(args: argparse.Namespace) -> int:
     factory.build()
 
     stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        with contextlib.suppress(NotImplementedError):
-            loop.add_signal_handler(sig, stop.set)
+    _install_signal_handlers(stop)
 
     tasks: list[asyncio.Task] = []
     if not args.no_agents:
