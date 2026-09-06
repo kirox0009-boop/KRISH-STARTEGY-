@@ -852,10 +852,11 @@ async function showDetail(id){
         ${v?` · <span class="tagv ${v.verdict}">${v.verdict}</span> score ${fmt(v.score,3)}
           · long-term viable: <b>${v.long_term_viable?"yes":"not established"}</b>`:""}</div></div>
       <div class="row">
-        <a href="/api/strategies/${id}/mql5"><button>⬇ MT5 EA (.mq5)</button></a>
+        ${s.purged ? `<span class="muted">rejected and purged — nothing left to export</span>`
+        : `<a href="/api/strategies/${id}/mql5"><button>⬇ MT5 EA (.mq5)</button></a>
         <a href="/api/strategies/${id}/pine" target="_blank"><button>Pine Script</button></a>
         <button onclick="krish.post('/api/control/retest/${id}')">Re-run backtest</button>
-        <button class="gold" onclick="krish.post('/api/control/deliver/${id}')">Package &amp; deliver</button>
+        <button class="gold" onclick="krish.post('/api/control/deliver/${id}')">Package &amp; deliver</button>`}
       </div></div>
     ${v?`<p style="margin:12px 0 6px">${esc(v.summary)}</p>
       ${(v.reasons||[]).length?`<ul class="muted" style="margin:0">${

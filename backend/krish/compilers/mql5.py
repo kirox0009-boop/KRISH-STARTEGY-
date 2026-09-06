@@ -200,6 +200,38 @@ def _emit_indicator(alias: str, spec: IndicatorSpec) -> tuple[list[str], list[st
             f"   return Buf({h}, 0, shift) {sign} {p['mult']} * "
             f"Buf({_handle(alias, '_atr')}, 0, shift);"
         )
+    elif t == "swing_high_level":
+        body.append(f"   return SwingHighLevel((int){p['left']}, (int){p['right']}, shift);")
+    elif t == "swing_low_level":
+        body.append(f"   return SwingLowLevel((int){p['left']}, (int){p['right']}, shift);")
+    elif t == "fvg_bull_level":
+        body.append("   return FvgBullLevel(shift);")
+    elif t == "fvg_bear_level":
+        body.append("   return FvgBearLevel(shift);")
+    elif t == "ob_bull_level":
+        body.append("   return ObBullLevel(shift);")
+    elif t == "ob_bear_level":
+        body.append("   return ObBearLevel(shift);")
+    elif t == "liquidity_sweep_high":
+        body.append(f"   return SweepHigh((int){p['left']}, (int){p['right']}, shift);")
+    elif t == "liquidity_sweep_low":
+        body.append(f"   return SweepLow((int){p['left']}, (int){p['right']}, shift);")
+    elif t == "equilibrium":
+        body.append(f"   return Equilibrium((int){p['period']}, shift);")
+    elif t == "displacement":
+        init.append(f"   {h} = iATR(_Symbol, PERIOD_CURRENT, (int){p['period']});")
+        init.append(
+            f'   if({h} == INVALID_HANDLE) {{ Print("failed: {alias}"); return INIT_FAILED; }}'
+        )
+        body += [
+            f"   double a = Buf({h}, 0, shift);",
+            "   if(a <= 0.0) return 0.0;",
+            "   return MathAbs(CloseAt(shift) - OpenAt(shift)) / a;",
+        ]
+    elif t == "wick_up_pct":
+        body.append("   return WickUpPct(shift);")
+    elif t == "wick_down_pct":
+        body.append("   return WickDownPct(shift);")
     elif t == "vwap":
         raise Mql5Unsupported(
             "session VWAP has no MetaTrader equivalent that matches this project's "
@@ -209,6 +241,140 @@ def _emit_indicator(alias: str, spec: IndicatorSpec) -> tuple[list[str], list[st
         raise Mql5Unsupported(f"indicator '{t}' is not supported by the MQL5 generator yet")
 
     return init, body
+
+
+#: indicator types that need the market-structure helper block
+STRUCTURE_TYPES = {
+    "swing_high_level",
+    "swing_low_level",
+    "fvg_bull_level",
+    "fvg_bear_level",
+    "ob_bull_level",
+    "ob_bear_level",
+    "liquidity_sweep_high",
+    "liquidity_sweep_low",
+    "equilibrium",
+    "wick_up_pct",
+    "wick_down_pct",
+}
+
+#: MetaTrader has no built-ins for any of this, so it is implemented directly on
+#: the rate arrays. The scans walk BACKWARDS from `shift` into older bars and a
+#: pivot is only considered from `shift + right` onwards - the same "you cannot
+#: know a swing until `right` bars later" rule the Python side enforces by
+#: shifting. Getting that wrong here would make the EA trade signals the backtest
+#: could never have seen.
+_STRUCTURE_HELPERS = """
+//--- market structure helpers ---------------------------------------------
+#define KRISH_SCAN 400
+
+double SwingHighLevel(int left, int right, int shift)
+{
+   for(int i = shift + right; i < shift + right + KRISH_SCAN; i++)
+   {
+      double h = HighAt(i);
+      if(h <= 0.0) break;
+      bool pivot = true;
+      for(int k = 1; k <= left  && pivot; k++) if(HighAt(i + k) > h) pivot = false;
+      for(int k = 1; k <= right && pivot; k++) if(HighAt(i - k) > h) pivot = false;
+      if(pivot) return h;
+   }
+   return 0.0;
+}
+
+double SwingLowLevel(int left, int right, int shift)
+{
+   for(int i = shift + right; i < shift + right + KRISH_SCAN; i++)
+   {
+      double l = LowAt(i);
+      if(l <= 0.0) break;
+      bool pivot = true;
+      for(int k = 1; k <= left  && pivot; k++) if(LowAt(i + k) < l) pivot = false;
+      for(int k = 1; k <= right && pivot; k++) if(LowAt(i - k) < l) pivot = false;
+      if(pivot) return l;
+   }
+   return 0.0;
+}
+
+double FvgBullLevel(int shift)
+{
+   for(int i = shift; i < shift + KRISH_SCAN; i++)
+   {
+      double lo = LowAt(i), h2 = HighAt(i + 2);
+      if(lo <= 0.0 || h2 <= 0.0) break;
+      if(lo > h2) return (h2 + lo) / 2.0;
+   }
+   return 0.0;
+}
+
+double FvgBearLevel(int shift)
+{
+   for(int i = shift; i < shift + KRISH_SCAN; i++)
+   {
+      double hi = HighAt(i), l2 = LowAt(i + 2);
+      if(hi <= 0.0 || l2 <= 0.0) break;
+      if(hi < l2) return (l2 + hi) / 2.0;
+   }
+   return 0.0;
+}
+
+double ObBullLevel(int shift)
+{
+   for(int i = shift; i < shift + KRISH_SCAN; i++)
+   {
+      double c = CloseAt(i);
+      if(c <= 0.0) break;
+      if(c > HighAt(i + 1) && CloseAt(i + 1) < OpenAt(i + 1)) return LowAt(i + 1);
+   }
+   return 0.0;
+}
+
+double ObBearLevel(int shift)
+{
+   for(int i = shift; i < shift + KRISH_SCAN; i++)
+   {
+      double c = CloseAt(i);
+      if(c <= 0.0) break;
+      if(c < LowAt(i + 1) && CloseAt(i + 1) > OpenAt(i + 1)) return HighAt(i + 1);
+   }
+   return 0.0;
+}
+
+double SweepHigh(int left, int right, int shift)
+{
+   double lvl = SwingHighLevel(left, right, shift);
+   if(lvl <= 0.0) return 0.0;
+   return (HighAt(shift) > lvl && CloseAt(shift) < lvl) ? 100.0 : 0.0;
+}
+
+double SweepLow(int left, int right, int shift)
+{
+   double lvl = SwingLowLevel(left, right, shift);
+   if(lvl <= 0.0) return 0.0;
+   return (LowAt(shift) < lvl && CloseAt(shift) > lvl) ? 100.0 : 0.0;
+}
+
+double Equilibrium(int period, int shift)
+{
+   return (HighestHigh(period, shift) + LowestLow(period, shift)) / 2.0;
+}
+
+double WickUpPct(int shift)
+{
+   double h = HighAt(shift), l = LowAt(shift);
+   double rng = h - l;
+   if(rng <= 0.0) return 0.0;
+   return (h - MathMax(OpenAt(shift), CloseAt(shift))) / rng * 100.0;
+}
+
+double WickDownPct(int shift)
+{
+   double h = HighAt(shift), l = LowAt(shift);
+   double rng = h - l;
+   if(rng <= 0.0) return 0.0;
+   return (MathMin(OpenAt(shift), CloseAt(shift)) - l) / rng * 100.0;
+}
+"""
 
 
 def _macd_handles(init: list[str], alias: str, p: dict[str, str], applied: str) -> None:
@@ -466,6 +632,12 @@ def to_mql5(ir: StrategyIR, *, magic: int | None = None) -> str:
     add("   return v[ArrayMinimum(v)];")
     add("}")
     add("")
+
+    # Only emitted when the strategy actually uses market structure, so a simple
+    # moving-average EA does not carry 120 lines it never calls.
+    if any(spec.type in STRUCTURE_TYPES for spec in ir.indicators.values()):
+        L.extend(_STRUCTURE_HELPERS.splitlines())
+        add("")
 
     # ---------------- indicator accessors ----------------
     init_lines: list[str] = []

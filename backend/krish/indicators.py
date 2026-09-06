@@ -210,6 +210,124 @@ def keltner_lower(df: Frame, period: int = 20, mult: float = 2.0) -> Series:
 
 
 # --------------------------------------------------------------------------- #
+# Market structure / "smart money" concepts
+#
+# These are the patterns discretionary traders actually talk about: swing
+# structure, fair value gaps, order blocks, liquidity sweeps, premium vs discount.
+# They are heuristics, not established factors - popular does not mean profitable -
+# so they are implemented faithfully and then judged by the same out-of-sample
+# machinery as everything else. The point is to let the evidence decide.
+#
+# CAUSALITY IS THE WHOLE GAME HERE. A swing high is only knowable `right` bars
+# after it forms, and every function below shifts its result by exactly that much.
+# Getting this wrong would produce spectacular backtests that cannot be traded,
+# which is the single easiest way for this project to start lying.
+# --------------------------------------------------------------------------- #
+
+
+def _pivot_mask(series: Series, left: int, right: int, *, high: bool) -> Series:
+    """True where ``series`` is a local extreme with ``left`` older and ``right``
+    newer bars on either side. Uses future bars by design; callers must shift."""
+    cond = pd.Series(True, index=series.index)
+    for k in range(1, int(left) + 1):
+        cond &= series >= series.shift(k) if high else series <= series.shift(k)
+    for k in range(1, int(right) + 1):
+        cond &= series >= series.shift(-k) if high else series <= series.shift(-k)
+    return cond.fillna(False)
+
+
+def swing_high_level(df: Frame, left: int = 2, right: int = 2) -> Series:
+    """Price of the most recent *confirmed* swing high, held until the next one.
+
+    Shifted by ``right`` so the level only becomes visible once the market has
+    actually printed the bars that confirm it.
+    """
+    right = int(right)
+    mask = _pivot_mask(df["high"], left, right, high=True)
+    return df["high"].where(mask).shift(right).ffill()
+
+
+def swing_low_level(df: Frame, left: int = 2, right: int = 2) -> Series:
+    right = int(right)
+    mask = _pivot_mask(df["low"], left, right, high=False)
+    return df["low"].where(mask).shift(right).ffill()
+
+
+def fvg_bull_level(df: Frame) -> Series:
+    """Midpoint of the most recent bullish fair value gap.
+
+    A three-bar imbalance: this bar's low sits above the high two bars back, so
+    the market skipped a price band on the way up. Uses only bars <= i.
+    """
+    gap = df["low"] > df["high"].shift(2)
+    level = (df["high"].shift(2) + df["low"]) / 2.0
+    return level.where(gap).ffill()
+
+
+def fvg_bear_level(df: Frame) -> Series:
+    gap = df["high"] < df["low"].shift(2)
+    level = (df["low"].shift(2) + df["high"]) / 2.0
+    return level.where(gap).ffill()
+
+
+def ob_bull_level(df: Frame) -> Series:
+    """Low of the last down-close candle before an up-impulse (bullish order block).
+
+    Detected when a bar closes above the previous bar's high and that previous bar
+    closed down - the classic "last bearish candle before the move" reading.
+    """
+    impulse = (df["close"] > df["high"].shift(1)) & (df["close"].shift(1) < df["open"].shift(1))
+    return df["low"].shift(1).where(impulse).ffill()
+
+
+def ob_bear_level(df: Frame) -> Series:
+    impulse = (df["close"] < df["low"].shift(1)) & (df["close"].shift(1) > df["open"].shift(1))
+    return df["high"].shift(1).where(impulse).ffill()
+
+
+def liquidity_sweep_high(df: Frame, left: int = 2, right: int = 2) -> Series:
+    """100 when this bar ran the stops above a swing high and closed back below it.
+
+    The wick takes out the level, the body does not hold it - a failed breakout,
+    which is what "liquidity sweep" describes.
+    """
+    level = swing_high_level(df, left, right)
+    hit = (df["high"] > level) & (df["close"] < level) & level.notna()
+    return hit.astype(float) * 100.0
+
+
+def liquidity_sweep_low(df: Frame, left: int = 2, right: int = 2) -> Series:
+    level = swing_low_level(df, left, right)
+    hit = (df["low"] < level) & (df["close"] > level) & level.notna()
+    return hit.astype(float) * 100.0
+
+
+def equilibrium(df: Frame, period: int = 50) -> Series:
+    """Midpoint of the recent range. Above it is premium, below it is discount."""
+    period = int(period)
+    hh = df["high"].rolling(period, min_periods=period).max()
+    ll = df["low"].rolling(period, min_periods=period).min()
+    return (hh + ll) / 2.0
+
+
+def displacement(df: Frame, period: int = 14) -> Series:
+    """Candle body measured in ATRs — how impulsive this bar was."""
+    body = (df["close"] - df["open"]).abs()
+    return body / atr(df, period).replace(0.0, np.nan)
+
+
+def wick_up_pct(df: Frame) -> Series:
+    """Upper wick as a percentage of the bar's range: rejection from above."""
+    rng = (df["high"] - df["low"]).replace(0.0, np.nan)
+    return (df["high"] - df[["open", "close"]].max(axis=1)) / rng * 100.0
+
+
+def wick_down_pct(df: Frame) -> Series:
+    rng = (df["high"] - df["low"]).replace(0.0, np.nan)
+    return (df[["open", "close"]].min(axis=1) - df["low"]) / rng * 100.0
+
+
+# --------------------------------------------------------------------------- #
 # registry — this is what the architect agent browses
 # --------------------------------------------------------------------------- #
 
@@ -292,6 +410,103 @@ REGISTRY: dict[str, IndicatorMeta] = {
     "stddev": IndicatorMeta(stddev, "volatility", {"period": (10, 100, True)}, "unbounded"),
     "highest": IndicatorMeta(highest, "level", {"period": (5, 200, True)}, "price"),
     "lowest": IndicatorMeta(lowest, "level", {"period": (5, 200, True)}, "price"),
+    # --- market structure / SMC -------------------------------------------
+    "swing_high_level": IndicatorMeta(
+        swing_high_level,
+        "structure",
+        {"left": (1, 8, True), "right": (1, 8, True)},
+        "price",
+        False,
+        "Last confirmed swing high",
+    ),
+    "swing_low_level": IndicatorMeta(
+        swing_low_level,
+        "structure",
+        {"left": (1, 8, True), "right": (1, 8, True)},
+        "price",
+        False,
+        "Last confirmed swing low",
+    ),
+    "fvg_bull_level": IndicatorMeta(
+        fvg_bull_level,
+        "structure",
+        {},
+        "price",
+        False,
+        "Bullish fair value gap midpoint",
+    ),
+    "fvg_bear_level": IndicatorMeta(
+        fvg_bear_level,
+        "structure",
+        {},
+        "price",
+        False,
+        "Bearish fair value gap midpoint",
+    ),
+    "ob_bull_level": IndicatorMeta(
+        ob_bull_level,
+        "structure",
+        {},
+        "price",
+        False,
+        "Bullish order block low",
+    ),
+    "ob_bear_level": IndicatorMeta(
+        ob_bear_level,
+        "structure",
+        {},
+        "price",
+        False,
+        "Bearish order block high",
+    ),
+    "liquidity_sweep_high": IndicatorMeta(
+        liquidity_sweep_high,
+        "structure",
+        {"left": (1, 8, True), "right": (1, 8, True)},
+        "binary",
+        False,
+        "Stops run above a swing high, closed back below",
+    ),
+    "liquidity_sweep_low": IndicatorMeta(
+        liquidity_sweep_low,
+        "structure",
+        {"left": (1, 8, True), "right": (1, 8, True)},
+        "binary",
+        False,
+        "Stops run below a swing low, closed back above",
+    ),
+    "equilibrium": IndicatorMeta(
+        equilibrium,
+        "structure",
+        {"period": (20, 200, True)},
+        "price",
+        False,
+        "Range midpoint: premium above, discount below",
+    ),
+    "displacement": IndicatorMeta(
+        displacement,
+        "volatility",
+        {"period": (7, 50, True)},
+        "unbounded",
+        False,
+        "Candle body in ATRs",
+    ),
+    "wick_up_pct": IndicatorMeta(
+        wick_up_pct,
+        "oscillator",
+        {},
+        "0-100",
+        False,
+        "Upper wick as % of range",
+    ),
+    "wick_down_pct": IndicatorMeta(
+        wick_down_pct,
+        "oscillator",
+        {},
+        "0-100",
+        False,
+        "Lower wick as % of range",
+    ),
 }
 
 PRICE_SOURCES = ("close", "open", "high", "low", "hl2", "hlc3", "ohlc4")

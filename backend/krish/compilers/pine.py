@@ -125,6 +125,77 @@ def _indicator_expr(alias: str, spec: IndicatorSpec) -> list[str]:
         return [f"{v} = ta.ema(close, {p['period']}) - {p['mult']} * ta.atr({p['period']})"]
     if t == "vwap":
         return [f"{v} = ta.vwap"]
+
+    # ---- market structure / SMC ------------------------------------------
+    # ta.pivothigh/pivotlow already return the pivot `right` bars after it forms,
+    # which is the same causality the Python side enforces by shifting.
+    if t == "swing_high_level":
+        return [
+            f"_pv{v} = ta.pivothigh(high, {p['left']}, {p['right']})",
+            f"var float {v} = na",
+            f"if not na(_pv{v})",
+            f"    {v} := _pv{v}",
+        ]
+    if t == "swing_low_level":
+        return [
+            f"_pv{v} = ta.pivotlow(low, {p['left']}, {p['right']})",
+            f"var float {v} = na",
+            f"if not na(_pv{v})",
+            f"    {v} := _pv{v}",
+        ]
+    if t == "fvg_bull_level":
+        return [
+            f"_g{v} = low > high[2] ? (high[2] + low) / 2.0 : na",
+            f"var float {v} = na",
+            f"if not na(_g{v})",
+            f"    {v} := _g{v}",
+        ]
+    if t == "fvg_bear_level":
+        return [
+            f"_g{v} = high < low[2] ? (low[2] + high) / 2.0 : na",
+            f"var float {v} = na",
+            f"if not na(_g{v})",
+            f"    {v} := _g{v}",
+        ]
+    if t == "ob_bull_level":
+        return [
+            f"_o{v} = (close > high[1] and close[1] < open[1]) ? low[1] : na",
+            f"var float {v} = na",
+            f"if not na(_o{v})",
+            f"    {v} := _o{v}",
+        ]
+    if t == "ob_bear_level":
+        return [
+            f"_o{v} = (close < low[1] and close[1] > open[1]) ? high[1] : na",
+            f"var float {v} = na",
+            f"if not na(_o{v})",
+            f"    {v} := _o{v}",
+        ]
+    if t == "liquidity_sweep_high":
+        return [
+            f"_pv{v} = ta.pivothigh(high, {p['left']}, {p['right']})",
+            f"var float _lv{v} = na",
+            f"if not na(_pv{v})",
+            f"    _lv{v} := _pv{v}",
+            f"{v} = (not na(_lv{v}) and high > _lv{v} and close < _lv{v}) ? 100.0 : 0.0",
+        ]
+    if t == "liquidity_sweep_low":
+        return [
+            f"_pv{v} = ta.pivotlow(low, {p['left']}, {p['right']})",
+            f"var float _lv{v} = na",
+            f"if not na(_pv{v})",
+            f"    _lv{v} := _pv{v}",
+            f"{v} = (not na(_lv{v}) and low < _lv{v} and close > _lv{v}) ? 100.0 : 0.0",
+        ]
+    if t == "equilibrium":
+        return [f"{v} = (ta.highest(high, {p['period']}) + ta.lowest(low, {p['period']})) / 2.0"]
+    if t == "displacement":
+        return [f"{v} = math.abs(close - open) / math.max(ta.atr({p['period']}), 1e-10)"]
+    if t == "wick_up_pct":
+        return [f"{v} = (high - math.max(open, close)) / math.max(high - low, 1e-10) * 100.0"]
+    if t == "wick_down_pct":
+        return [f"{v} = (math.min(open, close) - low) / math.max(high - low, 1e-10) * 100.0"]
+
     raise PineUnsupported(f"indicator '{t}' has no faithful Pine Script equivalent yet")
 
 

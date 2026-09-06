@@ -213,10 +213,18 @@ def create_app(factory: Factory | None = None) -> FastAPI:
             raise HTTPException(404, "strategy not found")
         runs = await store.in_db(store.runs_for_strategy, strategy_id)
         verdict = await store.in_db(store.verdict_for_strategy, strategy_id)
-        try:
-            described = StrategyIR.model_validate(row.ir).describe()
-        except Exception as exc:
-            described = f"(IR could not be rendered: {exc})"
+        purged = not row.ir
+        if purged:
+            described = (
+                "This strategy was rejected, so its full definition and backtest "
+                "detail were purged immediately. The verdict and the reasons it "
+                "failed are kept below."
+            )
+        else:
+            try:
+                described = StrategyIR.model_validate(row.ir).describe()
+            except Exception as exc:
+                described = f"(IR could not be rendered: {exc})"
         return {
             "id": row.id,
             "name": row.name,
@@ -228,6 +236,7 @@ def create_app(factory: Factory | None = None) -> FastAPI:
             "parents": row.parents,
             "status": row.status,
             "ir": row.ir,
+            "purged": purged,
             "description": described,
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "runs": [
@@ -258,11 +267,25 @@ def create_app(factory: Factory | None = None) -> FastAPI:
             ),
         }
 
+    def _require_ir(row: Any) -> None:
+        """A rejected strategy is purged on the spot, so its IR is gone.
+
+        That is deliberate, but it must read as a clear 410 rather than a 500 -
+        the difference between "this was thrown away" and "the server broke".
+        """
+        if not row.ir:
+            raise HTTPException(
+                410,
+                "this strategy was rejected and purged, so there is nothing left to "
+                "export. Only PASS and BORDERLINE strategies are kept in full.",
+            )
+
     @app.get("/api/strategies/{strategy_id}/pine", response_class=PlainTextResponse)
     async def strategy_pine(strategy_id: str) -> str:
         row = await store.in_db(store.get_strategy, strategy_id)
         if row is None:
             raise HTTPException(404, "strategy not found")
+        _require_ir(row)
         try:
             return to_pine(StrategyIR.model_validate(row.ir))
         except PineUnsupported as exc:
@@ -274,6 +297,7 @@ def create_app(factory: Factory | None = None) -> FastAPI:
         row = await store.in_db(store.get_strategy, strategy_id)
         if row is None:
             raise HTTPException(404, "strategy not found")
+        _require_ir(row)
         try:
             code = to_mql5(StrategyIR.model_validate(row.ir))
         except Mql5Unsupported as exc:
