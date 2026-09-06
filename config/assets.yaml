@@ -4,7 +4,11 @@
 
 defaults:
   timeframes: [H1, D1]
-  history_years: 8
+  # Ask for as much history as the provider will give. Daily series often go back
+  # decades; intraday is capped by the provider (Yahoo stops at ~729 days for H1)
+  # and the data layer clamps to that automatically. More history means a longer
+  # out-of-sample window, which means enough trades to actually judge.
+  history_years: 25
   session: "24h"
 
 assets:

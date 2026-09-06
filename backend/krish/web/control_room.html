@@ -227,6 +227,11 @@
     </div>
   </section>
 
+  <section class="card wide">
+    <h2>Why nothing is passing <em id="gateNote"></em></h2>
+    <div id="gates" class="muted">loading…</div>
+  </section>
+
   <section class="card">
     <h2>Disk</h2>
     <div id="storage" class="muted">loading…</div>
@@ -702,19 +707,21 @@ function renderVault(rows){
 }
 
 async function refreshAll(){
-  let projects, strategies, data, priors, disk, vault;
+  let projects, strategies, data, priors, disk, vault, gates;
   try{
-    [projects, strategies, data, priors, disk, vault] = await Promise.all([
+    [projects, strategies, data, priors, disk, vault, gates] = await Promise.all([
       fetch("/api/projects?limit=200").then(r=>r.json()),
       fetch(`/api/strategies?limit=120${$("assetFilter").value?"&asset="+$("assetFilter").value:""}`).then(r=>r.json()),
       fetch("/api/health/data").then(r=>r.json()),
       fetch("/api/priors").then(r=>r.json()),
       fetch("/api/health/storage").then(r=>r.json()),
       fetch(`/api/vault?include_borderline=${$("inclBL").checked}`).then(r=>r.json()),
+      fetch("/api/near-misses").then(r=>r.json()),
     ]);
   } catch { return; }
 
   renderVault(vault);
+  renderGates(gates);
 
   const byStage = {};
   projects.forEach(p => byStage[p.stage] = (byStage[p.stage]||0)+1);
@@ -761,6 +768,57 @@ async function refreshAll(){
       <div class="dimmer" style="font-family:var(--mono);font-size:10px">
         ${esc(JSON.stringify(p.value).slice(0,190))}</div></div>`).join("")
     : `<div class="muted">Nothing yet. Priors appear once five strategies have been judged.</div>`;
+}
+
+/* Turns "nothing has passed for hours" into a diagnosis: which gate blocks,
+   how often each is cleared, and which strategies came closest. */
+function renderGates(d){
+  if (!d || !d.judged){
+    $("gates").innerHTML = `<div class="muted">Nothing judged yet.</div>`;
+    $("gateNote").textContent = "";
+    return;
+  }
+  $("gateNote").textContent = `${d.judged} judged`;
+  const dead = d.gates.filter(g => g.pass_rate === 0);
+  const banner = dead.length
+    ? `<div style="background:rgba(255,107,129,.1);border:1px solid rgba(255,107,129,.35);
+         border-radius:10px;padding:10px 12px;margin-bottom:12px">
+         <b style="color:var(--bad)">Blocking gate${dead.length>1?"s":""}:</b>
+         ${dead.map(g=>esc(g.label)).join(", ")} — cleared by <b>0</b> of ${d.judged}
+         judged strategies. A gate nothing can clear is a threshold problem, not a
+         strategy problem: lower it in <code>config/factory.yaml</code>.</div>`
+    : "";
+
+  const bars = d.gates.map(g => {
+    const pct = Math.round(g.pass_rate * 100);
+    const col = pct === 0 ? "var(--bad)" : pct < 20 ? "var(--valid)" : "var(--deliver)";
+    return `<tr><td class="dimmer" style="white-space:nowrap">${esc(g.label)}</td>
+      <td style="width:100%">
+        <div class="bar" style="margin:0"><i style="width:${pct}%;background:${col}"></i></div>
+      </td>
+      <td style="font-family:var(--mono);text-align:right;white-space:nowrap">${pct}%</td>
+      <td class="dimmer" style="font-family:var(--mono);text-align:right;white-space:nowrap">
+        need ${g.threshold ?? "—"}${g.best!=null?` · best ${fmt(g.best,2)}`:""}</td></tr>`;
+  }).join("");
+
+  const nm = (d.near_misses || []).slice(0, 6).map(r => `
+    <tr class="click" onclick="krish.showDetail('${r.strategy_id}')">
+      <td>${esc(r.name)}<div class="dimmer" style="font-size:10.5px">
+        ${esc(r.asset)} ${esc(r.timeframe)} · ${esc(r.style)}</div></td>
+      <td style="white-space:nowrap">${r.passed_count}/${r.total_checks} passed</td>
+      <td class="dimmer">${r.blocker ? `${esc(r.blocker.label)}:
+        <b style="color:var(--valid)">${fmt(r.blocker.value,2)}</b> vs ${r.blocker.threshold}` : "—"}</td>
+    </tr>`).join("");
+
+  $("gates").innerHTML = banner +
+    `<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div><div class="dimmer" style="font-size:10px;letter-spacing:.1em;
+        text-transform:uppercase;margin-bottom:6px">pass rate per gate</div>
+        <table><tbody>${bars}</tbody></table></div>
+      <div><div class="dimmer" style="font-size:10px;letter-spacing:.1em;
+        text-transform:uppercase;margin-bottom:6px">closest misses</div>
+        <table><tbody>${nm || `<tr><td class="muted">none yet</td></tr>`}</tbody></table></div>
+    </div>`;
 }
 
 async function showDetail(id){

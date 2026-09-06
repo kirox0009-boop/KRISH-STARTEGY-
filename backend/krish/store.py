@@ -652,3 +652,128 @@ def accepted_strategies(
                 }
             )
         return out
+
+
+def near_misses(limit: int = 12) -> list[dict[str, Any]]:
+    """Strategies that did NOT pass, ranked by how close they came.
+
+    Exists because "nothing has passed for three hours" is an unanswerable
+    complaint without it. This turns silence into a diagnosis: which gate is
+    blocking, by how much, and whether the bar is set somewhere reachable.
+    """
+    with session() as s:
+        newest = (
+            select(
+                Verdict.strategy_id.label("sid"),
+                func.max(Verdict.created_at).label("latest"),
+            )
+            .group_by(Verdict.strategy_id)
+            .subquery()
+        )
+        rows = s.execute(
+            select(Strategy, Verdict)
+            .join(Verdict, Verdict.strategy_id == Strategy.id)
+            .join(
+                newest,
+                (newest.c.sid == Verdict.strategy_id) & (newest.c.latest == Verdict.created_at),
+            )
+            .where(Verdict.verdict != "PASS")
+            .order_by(Verdict.created_at.desc())
+            .limit(400)
+        ).all()
+
+        out: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for strategy, verdict in rows:
+            if strategy.id in seen:
+                continue
+            seen.add(strategy.id)
+            checks = verdict.checks or {}
+            failed = [c for c in checks.values() if not c.get("pass")]
+            if not checks:
+                continue
+            # ratio < 1 means "this far short of the bar"; the worst one is the
+            # binding constraint, which is the number worth showing.
+            worst = min((float(c.get("ratio", 0)) for c in failed), default=1.0)
+            blocker = min(failed, key=lambda c: float(c.get("ratio", 0)), default=None)
+            out.append(
+                {
+                    "strategy_id": strategy.id,
+                    "name": strategy.name,
+                    "asset": strategy.asset,
+                    "timeframe": strategy.timeframe,
+                    "style": strategy.style,
+                    "verdict": verdict.verdict,
+                    "score": verdict.score,
+                    "failed_count": len(failed),
+                    "passed_count": len(checks) - len(failed),
+                    "total_checks": len(checks),
+                    "closeness": round(worst, 3),
+                    "blocker": (
+                        {
+                            "label": blocker.get("label"),
+                            "value": blocker.get("value"),
+                            "threshold": blocker.get("threshold"),
+                            "ratio": blocker.get("ratio"),
+                        }
+                        if blocker
+                        else None
+                    ),
+                    "failed": [
+                        {
+                            "label": c.get("label"),
+                            "value": c.get("value"),
+                            "threshold": c.get("threshold"),
+                        }
+                        for c in failed
+                    ],
+                }
+            )
+        # fewest failures first, then whichever came closest on its worst gate
+        out.sort(key=lambda r: (r["failed_count"], -r["closeness"]))
+        return out[:limit]
+
+
+def gate_stats(limit: int = 500) -> dict[str, Any]:
+    """How often each individual threshold is cleared.
+
+    The single most useful number when nothing passes: if one gate has a 0% pass
+    rate, that gate is the problem, not the strategies.
+    """
+    with session() as s:
+        verdicts = list(s.scalars(select(Verdict).order_by(Verdict.created_at.desc()).limit(limit)))
+    tally: dict[str, dict[str, Any]] = {}
+    for v in verdicts:
+        for key, c in (v.checks or {}).items():
+            slot = tally.setdefault(
+                key,
+                {
+                    "label": c.get("label", key),
+                    "passed": 0,
+                    "total": 0,
+                    "threshold": c.get("threshold"),
+                    "best": None,
+                    "best_ratio": -1.0,
+                },
+            )
+            slot["total"] += 1
+            if c.get("pass"):
+                slot["passed"] += 1
+            # `ratio` is already normalised so that higher means closer to (or
+            # further past) the bar, whichever direction the gate points. Picking
+            # the best by ratio therefore works for "max drawdown" too, where a
+            # lower raw value is better.
+            ratio = float(c.get("ratio", 0) or 0)
+            if c.get("value") is not None and ratio >= slot["best_ratio"]:
+                slot["best_ratio"] = ratio
+                slot["best"] = c.get("value")
+    return {
+        "judged": len(verdicts),
+        "gates": sorted(
+            (
+                {**v, "key": k, "pass_rate": round(v["passed"] / max(v["total"], 1), 3)}
+                for k, v in tally.items()
+            ),
+            key=lambda r: r["pass_rate"],
+        ),
+    }
