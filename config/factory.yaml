@@ -16,9 +16,21 @@ backtest:
 
 judge:
   # A strategy must clear ALL of these on OUT-OF-SAMPLE data.
+  # MEASURED pass rates on 112 out-of-sample backtests, per gate on its own:
+  #   drawdown <= 25%   100%     expectancy >= 0.15R  44%
+  #   retention >= 0.5   33%     profit factor >= 2.0 25%
+  #   trades >= 30       25%     sharpe >= 1.0        16%
+  # These four are demanding but reachable, so they stay. Combining them is what
+  # makes a PASS rare - which is the point.
   min_oos_sharpe: 1.0
   min_oos_profit_factor: 2.0    # for every 1 lost, at least 2 won
   max_oos_drawdown_pct: 25.0
+  # MEASURED: only 25% of backtests reach 30 out-of-sample trades, and that is
+  # almost entirely an intraday-vs-daily problem. Median out-of-sample trades:
+  #     GOLD H1  37   |   GOLD D1  5   |   BITCOIN D1  9   |   US100 D1  8
+  # Daily strategies simply do not trade often enough on this much history to be
+  # judged. Prefer H1/H4 until the deeper data sources land (docs/ROADMAP.md
+  # Phase 1); do not lower this to make thin samples look significant.
   min_oos_trades: 30
   min_expectancy_r: 0.15        # average result per trade, in R multiples
   max_is_oos_degradation: 0.5   # OOS Sharpe must be >= 50% of IS Sharpe
@@ -32,14 +44,23 @@ judge:
   # If you want "more wins than losses", set 50 and expect far fewer passes.
   min_win_rate_pct: 0
 
-  # Growth. Computed from the out-of-sample CAGR, so it is a *sustained* rate,
-  # not one lucky month.
-  # Reality check: 5%/month is roughly 80%/year and already excellent.
-  # 100%/month (doubling) is ~120,000%/year - no strategy sustains that. Setting
-  # it there will either pass nothing, or pass only over-fitted lottery tickets
-  # that blow up live. The judge will not lie to you about this: it just applies
-  # whatever number you put here.
-  min_monthly_return_pct: 3.0
+  # Growth, from out-of-sample CAGR, so it is a sustained rate not one lucky month.
+  #
+  # MEASURED on 112 out-of-sample backtests (GOLD H1/D1, BITCOIN D1, US100 D1) at
+  # the 1% risk-per-trade below:
+  #     median 0.05%/month   p90 0.60%   p95 1.14%   best observed 2.08%
+  # So the previous 3.0 setting passed 0 of 112 - it was not strict, it was
+  # unreachable, which is why nothing came out for hours. 0.8 is roughly the top
+  # decile: demanding, still achievable.
+  #
+  # IMPORTANT - read before raising this. Monthly return = edge x position size.
+  # This gate measures the product, so tightening it mostly selects for strategies
+  # that got lucky, not for better edges. Profit factor and expectancy are what
+  # measure the edge. If you want more return from the SAME edge, the honest lever
+  # is `backtest.risk_per_trade_pct` below - measured drawdown is only 3-9%, well
+  # under the 25% limit, so there is real headroom. Raising risk multiplies
+  # returns AND drawdown together, which is a decision for you, not the judge.
+  min_monthly_return_pct: 0.8
 
 tuner:
   trials: 40

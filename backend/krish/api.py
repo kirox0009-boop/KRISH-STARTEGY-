@@ -293,6 +293,13 @@ def create_app(factory: Factory | None = None) -> FastAPI:
             store.accepted_strategies, include_borderline=include_borderline, limit=limit
         )
 
+    @app.get("/api/near-misses")
+    async def near_misses(limit: int = Query(12, le=50)) -> dict[str, Any]:
+        """Why nothing is passing: the closest failures and each gate's pass rate."""
+        rows = await store.in_db(store.near_misses, limit)
+        stats = await store.in_db(store.gate_stats)
+        return {"near_misses": rows, **stats}
+
     @app.get("/api/ledger")
     async def ledger(asset: str | None = None, limit: int = Query(200, le=1000)):
         return await store.in_db(store.judged_strategies, asset, limit)
