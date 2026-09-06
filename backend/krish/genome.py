@@ -563,6 +563,217 @@ def _recipe_roc_trend(rng: random.Random, timeframe: str) -> Blueprint:
     )
 
 
+# --------------------------------------------------------------------------- #
+# Market structure / SMC recipes
+#
+# These cannot use _mirror(): flipping "close crosses above the swing HIGH" gives
+# "close crosses below the swing HIGH", which is meaningless. The short side has to
+# reference the swing LOW, the bearish gap, the bearish order block. So each of
+# these writes both sides explicitly.
+# --------------------------------------------------------------------------- #
+
+
+def _recipe_bos_continuation(rng: random.Random, timeframe: str) -> Blueprint:
+    left = _int_param(rng, "swing_high_level", "left", 2, 6)
+    right = _int_param(rng, "swing_high_level", "right", 2, 5)
+    disp = round(rng.uniform(0.6, 1.6), 2)
+    inds = {
+        "sw_hi": IndicatorSpec(type="swing_high_level", params={"left": left, "right": right}),
+        "sw_lo": IndicatorSpec(type="swing_low_level", params={"left": left, "right": right}),
+        "disp": IndicatorSpec(type="displacement", params={"period": 14}),
+    }
+    long_conds = [
+        Condition(
+            op=ConditionOp.CROSS_ABOVE, left=Operand.price("close"), right=Operand.ind("sw_hi")
+        ),
+        Condition(op=ConditionOp.GT, left=Operand.ind("disp"), right=Operand.const(disp)),
+    ]
+    short_conds = [
+        Condition(
+            op=ConditionOp.CROSS_BELOW, left=Operand.price("close"), right=Operand.ind("sw_lo")
+        ),
+        Condition(op=ConditionOp.GT, left=Operand.ind("disp"), right=Operand.const(disp)),
+    ]
+    return Blueprint(
+        style="market_structure",
+        indicators=inds,
+        entry_long=RuleGroup(logic="and", conditions=long_conds),
+        entry_short=RuleGroup(logic="and", conditions=short_conds),
+        hypothesis=(
+            f"A break of structure on {timeframe} - price closing beyond the last confirmed "
+            f"swing with a body of at least {disp:g} ATR - marks a genuine shift that "
+            "continues, rather than another failed poke at the level."
+        ),
+        prefers_trailing=rng.random() < 0.6,
+        prefers_rr=(1.5, 4.0),
+        prefers_stop_atr=(1.0, 2.8),
+    )
+
+
+def _recipe_fvg_retrace(rng: random.Random, timeframe: str) -> Blueprint:
+    inds = {
+        "fvg_up": IndicatorSpec(type="fvg_bull_level", params={}),
+        "fvg_dn": IndicatorSpec(type="fvg_bear_level", params={}),
+    }
+    # tagged the gap with the wick, closed back on the right side of it
+    entry_long = RuleGroup(
+        logic="and",
+        conditions=[
+            Condition(op=ConditionOp.LT, left=Operand.price("low"), right=Operand.ind("fvg_up")),
+            Condition(op=ConditionOp.GT, left=Operand.price("close"), right=Operand.ind("fvg_up")),
+        ],
+    )
+    entry_short = RuleGroup(
+        logic="and",
+        conditions=[
+            Condition(op=ConditionOp.GT, left=Operand.price("high"), right=Operand.ind("fvg_dn")),
+            Condition(op=ConditionOp.LT, left=Operand.price("close"), right=Operand.ind("fvg_dn")),
+        ],
+    )
+    return Blueprint(
+        style="fair_value_gap",
+        indicators=inds,
+        entry_long=entry_long,
+        entry_short=entry_short,
+        hypothesis=(
+            f"Price that skipped a band on the way up returns to fill it. Entering when "
+            f"{timeframe} wicks into the fair value gap but closes back above it should "
+            "catch the continuation rather than the fill."
+        ),
+        prefers_rr=(1.4, 3.5),
+        prefers_stop_atr=(0.8, 2.2),
+    )
+
+
+def _recipe_order_block_reclaim(rng: random.Random, timeframe: str) -> Blueprint:
+    inds = {
+        "ob_up": IndicatorSpec(type="ob_bull_level", params={}),
+        "ob_dn": IndicatorSpec(type="ob_bear_level", params={}),
+    }
+    entry_long = RuleGroup(
+        conditions=[
+            Condition(
+                op=ConditionOp.CROSS_ABOVE, left=Operand.price("close"), right=Operand.ind("ob_up")
+            )
+        ]
+    )
+    entry_short = RuleGroup(
+        conditions=[
+            Condition(
+                op=ConditionOp.CROSS_BELOW, left=Operand.price("close"), right=Operand.ind("ob_dn")
+            )
+        ]
+    )
+    if rng.random() < 0.55:
+        gate = IndicatorSpec(type="displacement", params={"period": 14})
+        inds["disp"] = gate
+        level = round(rng.uniform(0.5, 1.4), 2)
+        entry_long.conditions.append(
+            Condition(op=ConditionOp.GT, left=Operand.ind("disp"), right=Operand.const(level))
+        )
+        entry_long.logic = "and"
+        entry_short.conditions.append(
+            Condition(op=ConditionOp.GT, left=Operand.ind("disp"), right=Operand.const(level))
+        )
+        entry_short.logic = "and"
+    return Blueprint(
+        style="order_block",
+        indicators=inds,
+        entry_long=entry_long,
+        entry_short=entry_short,
+        hypothesis=(
+            "The last opposing candle before an impulse marks where size entered. "
+            f"Reclaiming that level on {timeframe} should resume the move."
+        ),
+        prefers_trailing=rng.random() < 0.5,
+        prefers_rr=(1.5, 4.0),
+        prefers_stop_atr=(0.9, 2.5),
+    )
+
+
+def _recipe_liquidity_sweep(rng: random.Random, timeframe: str) -> Blueprint:
+    left = _int_param(rng, "liquidity_sweep_low", "left", 2, 6)
+    right = _int_param(rng, "liquidity_sweep_low", "right", 2, 5)
+    inds = {
+        "sweep_lo": IndicatorSpec(
+            type="liquidity_sweep_low", params={"left": left, "right": right}
+        ),
+        "sweep_hi": IndicatorSpec(
+            type="liquidity_sweep_high", params={"left": left, "right": right}
+        ),
+    }
+    entry_long = RuleGroup(
+        conditions=[
+            Condition(op=ConditionOp.GT, left=Operand.ind("sweep_lo"), right=Operand.const(50.0))
+        ]
+    )
+    entry_short = RuleGroup(
+        conditions=[
+            Condition(op=ConditionOp.GT, left=Operand.ind("sweep_hi"), right=Operand.const(50.0))
+        ]
+    )
+    if rng.random() < 0.5:
+        inds["wick_dn"] = IndicatorSpec(type="wick_down_pct", params={})
+        inds["wick_up"] = IndicatorSpec(type="wick_up_pct", params={})
+        thr = round(rng.uniform(35, 60), 1)
+        entry_long.conditions.append(
+            Condition(op=ConditionOp.GT, left=Operand.ind("wick_dn"), right=Operand.const(thr))
+        )
+        entry_long.logic = "and"
+        entry_short.conditions.append(
+            Condition(op=ConditionOp.GT, left=Operand.ind("wick_up"), right=Operand.const(thr))
+        )
+        entry_short.logic = "and"
+    return Blueprint(
+        style="liquidity_sweep",
+        indicators=inds,
+        entry_long=entry_long,
+        entry_short=entry_short,
+        hypothesis=(
+            f"On {timeframe}, a wick that takes out the last swing and closes back inside "
+            "is stops being run rather than a real break, so the move reverses."
+        ),
+        prefers_rr=(1.3, 3.2),
+        prefers_stop_atr=(0.8, 2.0),
+    )
+
+
+def _recipe_premium_discount(rng: random.Random, timeframe: str) -> Blueprint:
+    period = _int_param(rng, "equilibrium", "period", 30, 140)
+    wick = round(rng.uniform(30, 55), 1)
+    inds = {
+        "eq": IndicatorSpec(type="equilibrium", params={"period": period}),
+        "wick_dn": IndicatorSpec(type="wick_down_pct", params={}),
+        "wick_up": IndicatorSpec(type="wick_up_pct", params={}),
+    }
+    entry_long = RuleGroup(
+        logic="and",
+        conditions=[
+            Condition(op=ConditionOp.LT, left=Operand.price("close"), right=Operand.ind("eq")),
+            Condition(op=ConditionOp.GT, left=Operand.ind("wick_dn"), right=Operand.const(wick)),
+        ],
+    )
+    entry_short = RuleGroup(
+        logic="and",
+        conditions=[
+            Condition(op=ConditionOp.GT, left=Operand.price("close"), right=Operand.ind("eq")),
+            Condition(op=ConditionOp.GT, left=Operand.ind("wick_up"), right=Operand.const(wick)),
+        ],
+    )
+    return Blueprint(
+        style="premium_discount",
+        indicators=inds,
+        entry_long=entry_long,
+        entry_short=entry_short,
+        hypothesis=(
+            f"Buying only in the discount half of the {period:g}-bar range, and only when the "
+            f"bar shows a rejection wick of {wick:g}% or more, beats buying dips indiscriminately."
+        ),
+        prefers_rr=(1.4, 3.5),
+        prefers_stop_atr=(0.9, 2.4),
+    )
+
+
 RECIPES: dict[str, Recipe] = {
     "ma_cross": _recipe_ma_cross,
     "donchian_breakout": _recipe_donchian_breakout,
@@ -574,6 +785,12 @@ RECIPES: dict[str, Recipe] = {
     "stoch_reversal": _recipe_stoch_reversal,
     "squeeze_expansion": _recipe_squeeze_expansion,
     "roc_trend": _recipe_roc_trend,
+    # market structure / SMC
+    "bos_continuation": _recipe_bos_continuation,
+    "fvg_retrace": _recipe_fvg_retrace,
+    "order_block_reclaim": _recipe_order_block_reclaim,
+    "liquidity_sweep": _recipe_liquidity_sweep,
+    "premium_discount": _recipe_premium_discount,
 }
 
 

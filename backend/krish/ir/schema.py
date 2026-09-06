@@ -251,7 +251,11 @@ class StrategyIR(BaseModel):
     # lineage — how the learning loop tracks descent
     generation: int = 0
     parents: list[str] = Field(default_factory=list)
-    origin: Literal["fresh", "mutation", "crossover", "manual", "tuned"] = "fresh"
+    #: "promoted" = relocated to a better market/timeframe by the champion agent.
+    #: Every value here must stay in sync with what actually gets assigned, or a
+    #: strategy will save fine and then fail to load back - assignment is not
+    #: validated, only parsing is.
+    origin: Literal["fresh", "mutation", "crossover", "manual", "tuned", "promoted"] = "fresh"
     hypothesis: str = ""
     notes: str = ""
 
