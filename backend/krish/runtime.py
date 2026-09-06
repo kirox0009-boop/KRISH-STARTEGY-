@@ -20,6 +20,7 @@ from typing import Any
 
 from .agents.base import BaseAgent
 from .agents.build import DeveloperAgent
+from .agents.champion import ChampionAgent
 from .agents.data import MarketDataAgent
 from .agents.deliver import DeliveryAgent, DocWriterAgent, PackagerAgent
 from .agents.research import ArchitectAgent, QuantAnalystAgent, ResearcherAgent
@@ -48,6 +49,7 @@ AGENT_CLASSES: tuple[type[BaseAgent], ...] = (
     ResearcherAgent,
     QuantAnalystAgent,
     ArchitectAgent,
+    ChampionAgent,
     DeveloperAgent,
     TesterAgent,
     TunerAgent,

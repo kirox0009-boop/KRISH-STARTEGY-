@@ -33,6 +33,7 @@ from ..store import (
     BacktestRun,
     Verdict,
     in_db,
+    purge_rejected_strategy,
     save,
     update_project,
     update_strategy,
@@ -742,6 +743,20 @@ class JudgeAgent(BaseAgent):
                 msg.project_id,
                 stage=f"judged_{verdict.lower()}",
                 status="running" if verdict == "PASS" else "done",
+            )
+
+        # A rejected strategy is dead weight from this instant. Nothing downstream
+        # reads its backtests - only PASS and BORDERLINE continue to the doc writer
+        # - so the bulk goes now rather than sitting on disk waiting for a sweep.
+        if verdict == "REJECT" and factory_section("retention").get(
+            "purge_rejected_immediately", True
+        ):
+            freed = await in_db(purge_rejected_strategy, ir.id)
+            self.log(
+                f"purged '{ir.name}' on rejection: {freed['runs_deleted']} runs, "
+                f"{freed['events_deleted']} events, {freed['ir_bytes_freed']}B of IR "
+                "(fingerprint and verdict kept for dedupe and learning)",
+                msg=msg,
             )
 
         self.log(f"'{ir.name}' -> {verdict} (score {score:.3f})", msg=msg)

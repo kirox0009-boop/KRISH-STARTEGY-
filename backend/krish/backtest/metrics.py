@@ -112,7 +112,31 @@ def compute_metrics(
         "trades_per_year": round(n_trades / years, 1) if years else 0.0,
         "max_consecutive_losses": _max_streak(pnls, positive=False),
         "max_consecutive_wins": _max_streak(pnls, positive=True),
+        # Average holding time, in bars. Needed to say whether this is a scalp,
+        # an intraday trade or a swing - the same rules on a different timeframe
+        # are a completely different product.
+        "avg_bars_held": (
+            round(float(np.mean([float(t.get("bars_held", 0)) for t in trades])), 1)
+            if n_trades
+            else 0.0
+        ),
     }
+
+
+def deflated_by_selection(score: float, combinations_tried: int) -> float:
+    """Shrink a best-of-N score, because picking the winner of many trials
+    flatters it.
+
+    Sweeping one idea across 5 assets x 4 timeframes and reporting the best cell
+    is a multiple-comparisons problem: some of that 'edge' is just the luckiest
+    draw. This does not pretend to be a rigorous deflated Sharpe - it is a
+    deliberate haircut that grows with the number of combinations, so a winner
+    from 20 cells has to be genuinely better than a winner from 2.
+    """
+    n = max(int(combinations_tried), 1)
+    if n <= 1:
+        return round(score, 4)
+    return round(score / (1.0 + 0.18 * math.log(n)), 4)
 
 
 def _max_streak(pnls: np.ndarray, *, positive: bool) -> int:

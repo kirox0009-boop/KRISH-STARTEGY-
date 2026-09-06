@@ -24,6 +24,7 @@ from typing import Any
 import httpx
 
 from .. import llm
+from ..classify import classify
 from ..compilers.mql5 import Mql5Unsupported, to_mql5
 from ..compilers.pine import PineUnsupported, to_pine
 from ..compilers.python_export import to_python_runner
@@ -125,6 +126,7 @@ class DocWriterAgent(BaseAgent):
             if better:
                 why = better
 
+        kind = classify(ir, oos)
         parts = [
             f"# {ir.name}",
             "",
@@ -132,6 +134,18 @@ class DocWriterAgent(BaseAgent):
             f"**{payload.get('verdict')}** (score {payload.get('score')})",
             "",
             f"> {payload.get('summary', '')}",
+            "",
+            "## What kind of strategy this is",
+            "",
+            f"**{kind['label']}** — {kind['summary']}",
+            "",
+            "| | |",
+            "|---|---|",
+            f"| Horizon | **{kind['horizon']}** — {kind['horizon_note']} |",
+            f"| Average hold | {kind['avg_hold_readable']} ({kind['avg_hold_bars']} bars) |",
+            f"| Trade frequency | {kind['cadence']} — {kind['trades_per_year']} per year |",
+            f"| Direction | {kind['side']} |",
+            f"| Exit mechanism | {kind['exit_style']} |",
             "",
             "## What it is trying to exploit",
             "",
