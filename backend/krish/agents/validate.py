@@ -672,7 +672,15 @@ class JudgeAgent(BaseAgent):
 
     async def handle(self, msg: Message) -> None:
         ir = StrategyIR.model_validate(msg.payload["ir"])
-        thresholds = factory_section("judge")
+        thresholds = dict(factory_section("judge"))
+        # A campaign sets its own target profit factor, and it only ever raises
+        # the global bar, never lowers it - a campaign cannot smuggle weak
+        # strategies through by asking for less than config allows.
+        target_pf = msg.payload.get("target_profit_factor")
+        if target_pf:
+            thresholds["min_oos_profit_factor"] = max(
+                float(thresholds.get("min_oos_profit_factor", 1.15)), float(target_pf)
+            )
         oos = dict(msg.payload.get("metrics", {}).get("oos") or {})
         is_m = dict(msg.payload.get("metrics", {}).get("is") or {})
         robustness = dict(msg.payload.get("robustness") or {})
@@ -758,6 +766,20 @@ class JudgeAgent(BaseAgent):
                 "(fingerprint and verdict kept for dedupe and learning)",
                 msg=msg,
             )
+
+        # Keep the owning campaign's tally live, so its card shows real progress.
+        cid = msg.payload.get("campaign_id")
+        if cid:
+            from ..campaign import book
+
+            camp = book().get(cid)
+            if camp is not None:
+                if ir.id not in camp.strategy_ids:
+                    camp.strategy_ids.append(ir.id)
+                if verdict in {"PASS", "BORDERLINE"}:
+                    camp.delivered += 1
+                else:
+                    camp.dropped += 1
 
         self.log(f"'{ir.name}' -> {verdict} (score {score:.3f})", msg=msg)
         await self.emit(

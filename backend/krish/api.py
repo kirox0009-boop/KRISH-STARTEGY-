@@ -30,6 +30,8 @@ from .agents.data import data_health
 from .agents.system import MonitorAgent, storage_report
 from .assets import add_asset, remove_asset, universe
 from .bus import bus
+from .campaign import DEFAULT_PF, MIN_ALLOWED_PF, recipe_catalogue, validate_brief
+from .campaign import book as campaign_book
 from .compilers.mql5 import Mql5Unsupported, to_mql5
 from .compilers.pine import PineUnsupported, to_pine
 from .config import PACKAGE_DIR, factory_config, load_yaml, save_yaml
@@ -149,6 +151,77 @@ def create_app(factory: Factory | None = None) -> FastAPI:
     @app.get("/api/indicators")
     async def indicators() -> dict[str, list[str]]:
         return indicators_by_family()
+
+    # ------------------------------------------------------------------ #
+    # campaigns — the operator tells the factory what to build
+    # ------------------------------------------------------------------ #
+
+    @app.get("/api/campaign/options")
+    async def campaign_options() -> dict[str, Any]:
+        """Everything the New Campaign form needs to populate itself."""
+        return {
+            "assets": [
+                {"key": a.key, "name": a.name, "timeframes": list(a.timeframes)}
+                for a in universe().all()
+            ],
+            "recipes": recipe_catalogue(),
+            "min_profit_factor": MIN_ALLOWED_PF,
+            "default_profit_factor": DEFAULT_PF,
+        }
+
+    @app.get("/api/campaigns")
+    async def campaigns() -> list[dict[str, Any]]:
+        return [c.as_dict() for c in campaign_book().all()]
+
+    @app.post("/api/campaigns")
+    async def create_campaign(payload: dict[str, Any]) -> dict[str, Any]:
+        try:
+            brief = validate_brief(payload)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        campaign = campaign_book().create(brief)
+        await bus().publish(
+            Message(
+                topic=Topic.LOG,
+                sender="api",
+                kind=MsgKind.CONTROL,
+                payload={"message": f"campaign '{campaign.name}' created", **brief},
+            )
+        )
+        return campaign.as_dict()
+
+    class CampaignControl(BaseModel):
+        action: str  # pause | resume | cancel
+
+    @app.post("/api/campaigns/{campaign_id}/control")
+    async def control_campaign(campaign_id: str, body: CampaignControl) -> dict[str, Any]:
+        camp = campaign_book().get(campaign_id)
+        if camp is None:
+            raise HTTPException(404, "campaign not found")
+        from .campaign import CampaignState
+
+        camp.state = {
+            "pause": CampaignState.PAUSED,
+            "resume": CampaignState.RUNNING,
+            "cancel": CampaignState.CANCELLED,
+        }.get(body.action, camp.state)
+        return camp.as_dict()
+
+    class AutorunRequest(BaseModel):
+        on: bool
+
+    @app.get("/api/control/autorun")
+    async def get_autorun() -> dict[str, Any]:
+        from .agents.system import _autorun_enabled
+
+        return {"on": _autorun_enabled()}
+
+    @app.post("/api/control/autorun")
+    async def post_autorun(body: AutorunRequest) -> dict[str, Any]:
+        from .agents.system import set_autorun
+
+        set_autorun(body.on)
+        return {"ok": True, "on": body.on}
 
     # ------------------------------------------------------------------ #
     # projects / strategies
@@ -513,6 +586,26 @@ def create_app(factory: Factory | None = None) -> FastAPI:
             )
         )
         return {"ok": True, **body.model_dump()}
+
+    class WipeRequest(BaseModel):
+        confirm: bool = False
+        keep_priors: bool = True
+
+    @app.post("/api/control/wipe")
+    async def control_wipe(body: WipeRequest) -> dict[str, Any]:
+        """Clear all accumulated strategies and start clean. Requires confirm=true."""
+        if not body.confirm:
+            raise HTTPException(400, "set confirm=true to wipe everything")
+        removed = await store.in_db(store.wipe_all, keep_priors=body.keep_priors)
+        await bus().publish(
+            Message(
+                topic=Topic.LOG,
+                sender="api",
+                kind=MsgKind.CONTROL,
+                payload={"message": "operator wiped the workspace", "removed": removed},
+            )
+        )
+        return {"ok": True, "removed": removed}
 
     @app.post("/api/control/cycle")
     async def control_cycle(body: CycleRequest) -> dict[str, Any]:

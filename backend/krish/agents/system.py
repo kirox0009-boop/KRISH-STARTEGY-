@@ -14,6 +14,7 @@ import contextlib
 import itertools
 import os
 import platform
+import random
 import shutil
 import time
 from collections import defaultdict
@@ -50,6 +51,7 @@ class OrchestratorAgent(BaseAgent):
 
     async def setup(self) -> None:
         self._cycles = 0
+        self.rng = random.Random()
         self._pairs = self._build_rotation()
         self._rotation = itertools.cycle(self._pairs) if self._pairs else None
         # KRISH_SCHEDULER=off runs the factory on demand only (used by `krish cycle`
@@ -91,13 +93,60 @@ class OrchestratorAgent(BaseAgent):
         while not self._stop.is_set():
             await self._paused.wait()
             try:
-                await self._start_cycle(trigger="schedule")
+                # Campaigns come first and, when any is active, they are the ONLY
+                # thing that runs. That is the whole point of a campaign: the
+                # factory works on the operator's brief, not on a rotation of its
+                # own choosing. The background conveyor only turns when there is
+                # no campaign and the operator left auto-run on.
+                worked = await self._advance_campaigns()
+                if not worked and _autorun_enabled():
+                    await self._start_cycle(trigger="schedule")
             except Exception:
                 self.state.errors += 1
                 self.log("cycle start failed", level="error")
             interval = float(factory_section("cycle").get("interval_seconds", interval))
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self._stop.wait(), timeout=interval)
+
+    async def _advance_campaigns(self) -> bool:
+        """Generate the next batch for each running campaign. Returns True if any
+        campaign did work, so the idle conveyor stays off while campaigns run."""
+        from ..campaign import CampaignState, book
+
+        active = [c for c in book().active() if not c.complete]
+        if not active:
+            # retire any campaign that finished generating
+            for c in book().all():
+                if c.state is CampaignState.RUNNING and c.complete:
+                    c.state = CampaignState.DONE
+                    self.log(f"campaign '{c.name}' finished: {c.generated} ideas generated")
+            return False
+
+        per_tick = int(factory_section("cycle").get("strategies_per_cycle", 2))
+        for campaign in active:
+            batch = min(per_tick, campaign.max_strategies - campaign.generated)
+            for _ in range(batch):
+                asset, tf, recipe = book().next_target(campaign, self.rng)
+                campaign.generated += 1
+                self._cycles += 1
+                await self.emit(
+                    Topic.CYCLE_START,
+                    {
+                        "cycle_id": new_id("cyc"),
+                        "cycle": self._cycles,
+                        "asset": asset,
+                        "timeframe": tf,
+                        "count": 1,
+                        "recipe": recipe,
+                        "trigger": "campaign",
+                        "campaign_id": campaign.id,
+                        "target_profit_factor": campaign.target_profit_factor,
+                    },
+                )
+            self.progress(
+                f"campaign '{campaign.name}': {campaign.generated}/{campaign.max_strategies}"
+            )
+        return True
 
     async def _start_cycle(
         self,
@@ -130,6 +179,20 @@ class OrchestratorAgent(BaseAgent):
                 "trigger": trigger,
             },
         )
+
+
+#: Background auto-run. Off by default now: the operator drives with campaigns,
+#: and a factory that quietly generates on its own is exactly what they asked to
+#: stop. Flipped from the control room via the /api/control/autorun endpoint.
+_AUTORUN = {"on": False}
+
+
+def _autorun_enabled() -> bool:
+    return bool(_AUTORUN["on"])
+
+
+def set_autorun(on: bool) -> None:
+    _AUTORUN["on"] = bool(on)
 
 
 class MemoryAgent(BaseAgent):
