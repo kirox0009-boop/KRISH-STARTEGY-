@@ -152,6 +152,18 @@
   select,input{font:12px inherit;background:rgba(22,32,55,.85);color:var(--txt);
     border:1px solid var(--line);border-radius:8px;padding:7px 9px}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .fld{display:block;margin:12px 0;font-size:11.5px;color:var(--dim)}
+  .fld input[type=text],.fld input[type=number],.fld>input{width:100%;margin-top:5px}
+  .fld input[placeholder]{width:100%;margin-top:5px}
+  .pickers{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .pk{font:11px var(--mono);padding:5px 10px;border-radius:8px;cursor:pointer;
+    background:rgba(22,32,55,.7);border:1px solid var(--line2);color:var(--dim);user-select:none}
+  .pk.on{border-color:var(--data);color:#fff;background:rgba(61,219,217,.12)}
+  .pk.smc.on{border-color:var(--research);background:rgba(167,139,250,.14)}
+  .campc{border:1px solid var(--line2);border-radius:12px;padding:12px 14px;margin-bottom:10px;
+    background:linear-gradient(160deg,rgba(20,29,50,.5),rgba(11,17,32,.6))}
+  .campbar{height:6px;border-radius:4px;background:rgba(20,29,49,.9);overflow:hidden;margin:8px 0;display:flex}
+  .campbar i{height:100%;display:block}
   pre{margin:0;font:11px/1.7 var(--mono);color:var(--dim);white-space:pre-wrap}
   footer{padding:0 24px 32px;color:#3b4a6c;font-size:10.5px;position:relative;z-index:2}
   ::-webkit-scrollbar{width:8px;height:8px}
@@ -172,10 +184,54 @@
   <span class="pill" id="rate">— msg/s</span>
   <span class="pill" id="host">—</span>
   <div class="spacer"></div>
-  <button id="btnCycle" class="primary">▶ Run cycle</button>
+  <button id="btnCampaign" class="primary">✦ New campaign</button>
   <button id="btnPause" class="ghost">⏸ Pause all</button>
   <button id="btnResume" class="ghost">⏵ Resume</button>
+  <button id="btnWipe" class="ghost" title="Clear all strategies and start clean">🧹 Wipe</button>
 </header>
+
+<div id="modal" style="display:none;position:fixed;inset:0;z-index:100;
+  background:rgba(2,4,10,.72);backdrop-filter:blur(4px)">
+  <div style="max-width:640px;margin:5vh auto;background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;padding:22px 24px;max-height:88vh;overflow:auto;
+    box-shadow:0 30px 80px -30px #000">
+    <div class="row" style="justify-content:space-between;margin-bottom:4px">
+      <h2 style="margin:0;font-size:15px;letter-spacing:.06em;color:#fff">New campaign</h2>
+      <button class="icon ghost" onclick="krish.closeModal()">✕</button>
+    </div>
+    <p class="muted" style="margin:0 0 16px">
+      You choose exactly what to build. The factory works only on this brief — it
+      does not wander off generating on its own. Good strategies are delivered;
+      ones with an edge that miss the target are deep-tuned and re-judged; the
+      rest are dropped.</p>
+    <label class="fld">Name<input id="cName" placeholder="e.g. Gold intraday hunt"></label>
+    <div class="fld">Assets <span class="dimmer">— test on each, keep whichever performs best</span>
+      <div id="cAssets" class="pickers"></div></div>
+    <div class="fld">Timeframes <span class="dimmer">— every strategy is tried on each</span>
+      <div id="cTimeframes" class="pickers"></div></div>
+    <div class="fld">Strategy styles <span class="dimmer">— what kind of edge to hunt for</span>
+      <div class="row" style="margin:4px 0">
+        <button class="sm ghost" onclick="krish.pickAllStyles(true)">all</button>
+        <button class="sm ghost" onclick="krish.pickAllStyles(false)">none</button>
+        <span class="dimmer" style="font-size:10.5px">SMC = smart-money concepts</span></div>
+      <div id="cStyles" class="pickers"></div></div>
+    <div class="row" style="gap:22px;margin-top:4px">
+      <label class="fld" style="flex:1">Target profit factor
+        <div class="row" style="gap:10px">
+          <input id="cPF" type="range" min="1.7" max="3" step="0.1" value="2.0"
+            style="flex:1" oninput="document.getElementById('cPFval').textContent=this.value">
+          <b id="cPFval" style="font-family:var(--mono);color:var(--gold);width:34px">2.0</b>
+        </div>
+        <span class="dimmer" style="font-size:10px">minimum 1.7 · best-in-class 2.0+</span></label>
+      <label class="fld" style="width:150px">Max strategies
+        <input id="cMax" type="number" value="40" min="1" max="500"></label>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:18px;gap:8px">
+      <button class="ghost" onclick="krish.closeModal()">Cancel</button>
+      <button class="primary" id="cLaunch">Launch campaign</button>
+    </div>
+  </div>
+</div>
 
 <section id="floorWrap">
   <canvas id="floor"></canvas>
@@ -193,6 +249,11 @@
 </section>
 
 <main>
+  <section class="card wide" id="campaignCard" style="display:none">
+    <h2>✦ Campaigns <em id="campNote"></em></h2>
+    <div id="campaigns"></div>
+  </section>
+
   <section class="card vault wide">
     <h2>🏆 Vault — ready to run <em id="vaultNote"></em></h2>
     <div class="row" style="margin-bottom:11px">
@@ -727,6 +788,7 @@ async function refreshAll(){
 
   renderVault(vault);
   renderGates(gates);
+  renderCampaigns();
 
   const byStage = {};
   projects.forEach(p => byStage[p.stage] = (byStage[p.stage]||0)+1);
@@ -910,10 +972,110 @@ async function post(url, body){
   } catch(e){ alert("Request failed: "+e.message); }
 }
 
-// inline handlers in generated HTML need a global entry point
-window.krish = { post, showDetail };
+/* ── campaigns: the operator's brief ── */
+const SMC_STYLES = new Set(["market_structure","fair_value_gap","order_block",
+                            "liquidity_sweep","premium_discount"]);
+let campaignOptions = null;
 
-$("btnCycle").onclick  = () => post("/api/control/cycle", { count:2 });
+async function openCampaign(){
+  if (!campaignOptions){
+    try { campaignOptions = await fetch("/api/campaign/options").then(r=>r.json()); }
+    catch { alert("could not load campaign options"); return; }
+  }
+  const o = campaignOptions;
+  $("cAssets").innerHTML = o.assets.map(a =>
+    `<span class="pk" data-asset="${a.key}" onclick="krish.tog(this)">${a.key}</span>`).join("");
+  const tfs = [...new Set(o.assets.flatMap(a => a.timeframes))];
+  $("cTimeframes").innerHTML = tfs.map(t =>
+    `<span class="pk" data-tf="${t}" onclick="krish.tog(this)">${t}</span>`).join("");
+  $("cStyles").innerHTML = o.recipes.map(r =>
+    `<span class="pk ${SMC_STYLES.has(r.style)?"smc":""}" data-recipe="${r.recipe}"
+       onclick="krish.tog(this)" title="${esc(r.style)}">${esc(r.style.replace(/_/g," "))}</span>`).join("");
+  $("cPF").min = o.min_profit_factor; $("cPF").value = o.default_profit_factor;
+  $("cPFval").textContent = o.default_profit_factor;
+  // sensible defaults selected
+  document.querySelectorAll("#cAssets .pk")[0]?.classList.add("on");
+  document.querySelectorAll("#cTimeframes .pk").forEach(p =>
+    { if (["H1","H4"].includes(p.dataset.tf)) p.classList.add("on"); });
+  document.querySelectorAll("#cStyles .pk").forEach(p => p.classList.add("on"));
+  $("modal").style.display = "block";
+}
+function closeModal(){ $("modal").style.display = "none"; }
+function tog(el){ el.classList.toggle("on"); }
+function pickAllStyles(on){
+  document.querySelectorAll("#cStyles .pk").forEach(p => p.classList.toggle("on", on));
+}
+async function launchCampaign(){
+  const pick = (sel, attr) => [...document.querySelectorAll(sel+".on")].map(p => p.dataset[attr]);
+  const body = {
+    name: $("cName").value || "Untitled campaign",
+    assets: pick("#cAssets .pk","asset"),
+    timeframes: pick("#cTimeframes .pk","tf"),
+    recipes: pick("#cStyles .pk","recipe"),
+    target_profit_factor: parseFloat($("cPF").value),
+    max_strategies: parseInt($("cMax").value) || 40,
+  };
+  if (!body.assets.length){ alert("pick at least one asset"); return; }
+  const r = await fetch("/api/campaigns", { method:"POST",
+    headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok){ alert(`Failed: ${j.detail || "see logs"}`); return; }
+  closeModal(); queueRefresh();
+}
+
+async function renderCampaigns(){
+  let list;
+  try { list = await fetch("/api/campaigns").then(r=>r.json()); } catch { return; }
+  const card = $("campaignCard");
+  if (!list.length){ card.style.display = "none"; return; }
+  card.style.display = "";
+  $("campNote").textContent = `${list.filter(c=>c.state==="running").length} running`;
+  $("campaigns").innerHTML = list.map(c => {
+    const p = c.progress, tot = c.max_strategies || 1;
+    const w = (n) => `${Math.min(100, n/tot*100)}%`;
+    const stateCol = {running:"var(--data)",done:"var(--deliver)",
+                      paused:"var(--valid)",cancelled:"var(--bad)"}[c.state] || "var(--dim)";
+    return `<div class="campc">
+      <div class="row" style="justify-content:space-between">
+        <div><b style="color:#fff">${esc(c.name)}</b>
+          <span class="dimmer" style="font-size:10.5px"> · ${esc(c.assets.join(", "))}
+            · ${esc(c.timeframes.join("/"))} · PF≥${c.target_profit_factor}</span></div>
+        <span style="color:${stateCol};font:10.5px var(--mono)">${c.state}</span></div>
+      <div class="campbar">
+        <i style="width:${w(p.delivered)};background:var(--deliver)" title="delivered ${p.delivered}"></i>
+        <i style="width:${w(p.dropped)};background:rgba(255,107,129,.5)" title="dropped ${p.dropped}"></i>
+      </div>
+      <div class="dimmer" style="font:10.5px var(--mono)">
+        ${p.generated}/${tot} generated · <span style="color:var(--deliver)">${p.delivered} kept</span>
+        · ${p.dropped} dropped · ${p.remaining} to go
+        ${c.state==="running"?`· <a onclick="krish.campCtl('${c.id}','pause')" style="cursor:pointer;color:var(--valid)">pause</a>`:""}
+        ${c.state==="paused"?`· <a onclick="krish.campCtl('${c.id}','resume')" style="cursor:pointer;color:var(--data)">resume</a>`:""}
+        ${["running","paused"].includes(c.state)?`· <a onclick="krish.campCtl('${c.id}','cancel')" style="cursor:pointer;color:var(--bad)">cancel</a>`:""}
+      </div></div>`;
+  }).join("");
+}
+async function campCtl(id, action){
+  await fetch(`/api/campaigns/${id}/control`, { method:"POST",
+    headers:{"Content-Type":"application/json"}, body: JSON.stringify({action}) });
+  queueRefresh();
+}
+async function wipe(){
+  if (!confirm("Delete every strategy and start clean?\n\nLearned priors are kept, so the "
+    + "factory stays as smart as it is now. This cannot be undone.")) return;
+  const r = await fetch("/api/control/wipe", { method:"POST",
+    headers:{"Content-Type":"application/json"}, body: JSON.stringify({confirm:true}) });
+  const j = await r.json().catch(()=>({}));
+  alert(r.ok ? `Cleared ${j.removed?.strategies_before ?? 0} strategies. Fresh start.`
+             : `Failed: ${j.detail||"see logs"}`);
+  queueRefresh();
+}
+
+// inline handlers in generated HTML need a global entry point
+window.krish = { post, showDetail, tog, pickAllStyles, closeModal, campCtl };
+
+$("btnCampaign").onclick = openCampaign;
+$("cLaunch").onclick = launchCampaign;
+$("btnWipe").onclick = wipe;
 $("btnPause").onclick  = () => post("/api/control/agent", { agent:"*", action:"pause" });
 $("btnResume").onclick = () => post("/api/control/agent", { agent:"*", action:"resume" });
 $("assetFilter").onchange = refreshAll;

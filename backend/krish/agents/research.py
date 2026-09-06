@@ -61,9 +61,19 @@ class ResearcherAgent(BaseAgent):
         scope = f"{asset}:{timeframe}"
         priors = self._priors.get(scope) or await in_db(priors_for, scope)
 
+        # Campaign context, carried untouched all the way to the judge.
+        campaign_id = msg.payload.get("campaign_id")
+        forced_recipe = msg.payload.get("recipe")  # campaign fixes the style
+        target_pf = msg.payload.get("target_profit_factor")
+
         elites = await in_db(elite_strategies, asset, 20)
         for _ in range(count):
-            mode, parents = self._choose_mode(elites)
+            # A campaign pins the recipe, so it always builds a fresh strategy of
+            # the requested style rather than mutating whatever elite exists.
+            if forced_recipe:
+                mode, parents = "fresh", []
+            else:
+                mode, parents = self._choose_mode(elites)
             hypothesis = await self._write_hypothesis(asset, timeframe, mode, parents, priors)
 
             project = await in_db(
@@ -94,6 +104,9 @@ class ResearcherAgent(BaseAgent):
                     "title": hypothesis["title"],
                     "hypothesis": hypothesis["text"],
                     "priors": priors,
+                    "recipe": forced_recipe,
+                    "campaign_id": campaign_id,
+                    "target_profit_factor": target_pf,
                 },
                 parent=msg,
                 project_id=project.id,
@@ -237,7 +250,9 @@ class QuantAnalystAgent(BaseAgent):
 
         priors = dict(msg.payload.get("priors") or {})
         mode = str(msg.payload.get("mode", "fresh"))
-        recipe = self._pick_recipe(mode, priors)
+        # A campaign's chosen recipe is not up for negotiation. Only pick one
+        # ourselves when the operator did not fix it.
+        recipe = msg.payload.get("recipe") or self._pick_recipe(mode, priors)
 
         if msg.project_id:
             await in_db(update_project, msg.project_id, stage="design")
@@ -251,6 +266,8 @@ class QuantAnalystAgent(BaseAgent):
                 "parents": msg.payload.get("parents") or [],
                 "recipe": recipe,
                 "priors": priors,
+                "campaign_id": msg.payload.get("campaign_id"),
+                "target_profit_factor": msg.payload.get("target_profit_factor"),
                 "hypothesis": msg.payload.get("hypothesis", ""),
                 "data": {
                     "bars": bars,

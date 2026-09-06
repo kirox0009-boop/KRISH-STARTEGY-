@@ -825,3 +825,28 @@ def purge_rejected_strategy(strategy_id: str) -> dict[str, int]:
         "events_deleted": int(events.rowcount or 0),
         "ir_bytes_freed": ir_freed,
     }
+
+
+def wipe_all(*, keep_priors: bool = True) -> dict[str, int]:
+    """Clear the accumulated mess and start clean.
+
+    Deletes every strategy, backtest run, verdict, delivery, project and event.
+    Learned priors are kept by default - they are the distilled lesson of all
+    that work, and throwing them away would make the fresh start dumber than the
+    messy one it replaced. Pass keep_priors=False for a truly blank slate.
+    """
+    counts_before = counts()
+    with session() as s:
+        removed = {
+            "backtest_runs": s.execute(delete(BacktestRun)).rowcount or 0,
+            "verdicts": s.execute(delete(Verdict)).rowcount or 0,
+            "deliveries": s.execute(delete(Delivery)).rowcount or 0,
+            "strategies": s.execute(delete(Strategy)).rowcount or 0,
+            "projects": s.execute(delete(Project)).rowcount or 0,
+            "events": s.execute(delete(AgentEvent)).rowcount or 0,
+        }
+        if not keep_priors:
+            removed["priors"] = s.execute(delete(Prior)).rowcount or 0
+    vacuum()
+    removed["strategies_before"] = counts_before.get("strategies", 0)
+    return {k: int(v) for k, v in removed.items()}
