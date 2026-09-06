@@ -13,10 +13,47 @@ do one, two, or all three.
 | **Price cache** (Parquet) | ~10 MB, bounded | S3-compatible object storage | env + one config line |
 | **Delivered ZIPs** | ~40 KB each | S3-compatible object storage | same as above |
 
-> **Before doing any of this:** check whether you need to. The `librarian` agent
-> already caps growth — open the **Disk** panel in the control room. If the
-> database is sitting at a few hundred MB and stable, you are fine. Do this when
-> the numbers actually bother you, not on principle.
+---
+
+## Already done for you: minimal-disk mode
+
+`config/factory.yaml` ships with `storage.minimise_local_disk: true`, which needs
+**no account and no credentials**. With it on:
+
+| | before | after |
+|---|---|---|
+| price cache (Parquet) | 2–10 MB on disk | **0 bytes** — held in RAM |
+| delivered ZIPs | kept forever | **0 bytes** — deleted once a remote channel has a copy |
+| logs | up to 120 MB | **4 MB** ceiling |
+| database | grows | still local — see below |
+
+Measured after a full cycle from an empty `var/`:
+
+```
+parquet files on disk : 0
+price cache           : 0.0 MB
+packages              : 0.0 MB
+logs                  : 0.01 MB
+database              : 1.2 MB      <-- the only remaining consumer
+```
+
+Price history is re-fetched into memory on restart (a few seconds), or restored
+from object storage if you configure it below.
+
+**Safety rule:** a package is only deleted when another channel — object storage
+or Telegram — has *confirmed* it took a copy. If every upload fails, the local
+file is kept and a warning is logged. The one thing worse than a full disk is a
+deleted strategy.
+
+**The database is the honest exception.** It has to be writable continuously, so
+it cannot be "held in RAM" without losing every result on restart. Moving it off
+the box needs a free cloud Postgres account — step 1 below, about ten minutes. I
+cannot create that account for you; everything else is already handled.
+
+---
+
+> **Before doing more:** check whether you need to. Open the **Disk** panel in the
+> control room. If the database is a few hundred MB and stable, you are fine.
 
 ---
 

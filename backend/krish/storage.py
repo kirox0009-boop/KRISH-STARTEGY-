@@ -54,6 +54,15 @@ class ObjectStore(ABC):
     @abstractmethod
     def delete(self, key: str) -> bool: ...
 
+    # Byte-level access exists so nothing has to touch the local filesystem at
+    # all. Writing a Parquet file just to upload and delete it would defeat the
+    # point of running with zero local storage.
+    @abstractmethod
+    def put_bytes(self, data: bytes, key: str) -> str | None: ...
+
+    @abstractmethod
+    def get_bytes(self, key: str) -> bytes | None: ...
+
     def url_for(self, key: str) -> str | None:
         return None
 
@@ -78,6 +87,12 @@ class LocalStore(ObjectStore):
 
     def delete(self, key: str) -> bool:
         return False
+
+    def put_bytes(self, data: bytes, key: str) -> str | None:
+        return None
+
+    def get_bytes(self, key: str) -> bytes | None:
+        return None
 
 
 class S3Store(ObjectStore):
@@ -177,6 +192,27 @@ class S3Store(ObjectStore):
             log.warning("delete failed for %s: %s", key, exc)
             return False
 
+    def put_bytes(self, data: bytes, key: str) -> str | None:
+        if not self.enabled or not data:
+            return None
+        full = self._key(key)
+        try:
+            self.client.put_object(Bucket=self.bucket, Key=full, Body=data)
+        except Exception as exc:
+            log.warning("byte upload failed for %s: %s", full, exc)
+            return None
+        log.info("uploaded %s (%.1f KB, no local file)", full, len(data) / 1024)
+        return self.url_for(key)
+
+    def get_bytes(self, key: str) -> bytes | None:
+        if not self.enabled:
+            return None
+        try:
+            resp = self.client.get_object(Bucket=self.bucket, Key=self._key(key))
+            return resp["Body"].read()
+        except Exception:
+            return None
+
     def url_for(self, key: str) -> str | None:
         if not self.enabled:
             return None
@@ -237,6 +273,23 @@ def offload_price_cache() -> bool:
     return bool(cfg.get("offload_price_cache", True)) and store().enabled
 
 
+def minimise_local_disk() -> bool:
+    """Master switch for "use as little of the VPS disk as possible".
+
+    When on: price history is held in RAM instead of written to Parquet, ZIPs are
+    built in a temp directory and removed once every delivery channel has taken a
+    copy, and logs rotate at a fraction of the usual size.
+    """
+    return bool(factory_section("storage").get("minimise_local_disk", False))
+
+
+def price_cache_mode() -> str:
+    """``memory`` keeps nothing on disk; ``disk`` keeps the Parquet cache."""
+    if minimise_local_disk():
+        return "memory"
+    return str(factory_section("storage").get("price_cache", "disk")).lower()
+
+
 def upload_packages() -> bool:
     cfg = factory_section("storage")
     return bool(cfg.get("upload_packages", True)) and store().enabled
@@ -253,8 +306,10 @@ __all__ = [
     "S3Store",
     "cache_key",
     "keep_local_packages",
+    "minimise_local_disk",
     "offload_price_cache",
     "package_key",
+    "price_cache_mode",
     "reset_store",
     "store",
     "upload_packages",
