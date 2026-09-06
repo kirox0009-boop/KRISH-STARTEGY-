@@ -684,8 +684,13 @@ function renderVault(rows){
     return `<div class="vcard ${r.verdict==="BORDERLINE"?"bl":""}">
       <div class="vhead">
         <div><div class="vname">${esc(r.name)}</div>
-          <div class="vsub">${esc(r.asset)} ${esc(r.timeframe)} · ${esc(r.style)} · gen ${r.generation}</div></div>
+          <div class="vsub">${esc(r.asset)} ${esc(r.timeframe)} · ${esc(r.style)} · gen ${r.generation}
+            ${r.origin === "promoted" ? ` · <span style="color:var(--data)">promoted</span>` : ""}</div></div>
         <span class="tagv ${r.verdict}">${r.verdict}</span></div>
+      ${r.kind && r.kind.label ? `<div style="font-size:11.5px;color:#fff">
+        <b>${esc(r.kind.label)}</b>
+        <div class="dimmer" style="font-size:10.5px;margin-top:2px">${esc(r.kind.summary)}</div>
+      </div>` : ""}
       <div class="chips">
         <span class="chip">score <b>${fmt(r.score,2)}</b></span>
         <span class="chip">trades <b>${m.trades ?? "—"}</b></span>

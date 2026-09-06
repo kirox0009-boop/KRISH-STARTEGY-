@@ -80,6 +80,7 @@ class Topic(StrEnum):
 
     # learning
     MEMORY_PRIORS = "memory.priors_updated"
+    CHAMPION_CAMPAIGN = "champion.campaign"
 
     # observability (fan-out to the dashboard)
     AGENT_STATUS = "agent.status"

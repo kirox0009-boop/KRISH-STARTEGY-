@@ -729,6 +729,14 @@ def _summarise(msg: Message) -> str:
             return f"{p.get('asset')} {p.get('timeframe')}: {p.get('bars')} bars"
         case Topic.MEMORY_PRIORS:
             return f"priors updated for {p.get('scope')} from {p.get('samples')} results"
+        case Topic.CHAMPION_CAMPAIGN:
+            sw = p.get("sweep") or {}
+            best = sw.get("best") or {}
+            return (
+                f"campaign on {name}: swept {sw.get('tried', 0)} markets, "
+                f"best {best.get('asset', '?')} {best.get('timeframe', '')} "
+                f"(deflated {sw.get('deflated_best_score')})"
+            )
         case _:
             return name or msg.topic
 

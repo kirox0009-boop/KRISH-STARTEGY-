@@ -10,6 +10,7 @@ SQLite by default (zero setup), Postgres on the VPS via ``DATABASE_URL``.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -610,11 +611,24 @@ def accepted_strategies(
             metrics = dict(run.metrics or {}) if run else {}
 
             remote = (delivery.channels or {}).get("object_store") if delivery else None
+
+            # Label the horizon from the trade log, so the card can say "swing
+            # trend-following" rather than leaving the reader to work it out.
+            kind: dict[str, Any] = {}
+            try:
+                from .classify import classify
+                from .ir.schema import StrategyIR
+
+                kind = classify(StrategyIR.model_validate(strategy.ir), metrics)
+            except Exception:
+                kind = {}
+
             out.append(
                 {
                     "strategy_id": strategy.id,
                     "name": strategy.name,
                     "style": strategy.style,
+                    "kind": kind,
                     "asset": strategy.asset,
                     "timeframe": strategy.timeframe,
                     "generation": strategy.generation,
@@ -776,4 +790,38 @@ def gate_stats(limit: int = 500) -> dict[str, Any]:
             ),
             key=lambda r: r["pass_rate"],
         ),
+    }
+
+
+def purge_rejected_strategy(strategy_id: str) -> dict[str, int]:
+    """Delete a failed strategy's bulk the moment it is rejected. No waiting.
+
+    What goes immediately: every backtest run (equity curves and trade lists -
+    about 125 KB, roughly 97% of what a strategy costs) and its event log.
+
+    What is deliberately kept, at roughly 5 KB: the strategy row with its
+    fingerprint, and the verdict with its check results. Those are not sentiment -
+    they are load-bearing:
+
+      * the fingerprint stops the factory re-inventing and re-testing the same
+        failing idea forever, which would waste far more than it saves
+      * the memory agent builds its priors from failures as much as successes;
+        delete them and the factory stops learning what does not work
+      * the "why nothing is passing" panel is built from these check results
+
+    So this keeps the diagnosis and throws away the evidence locker.
+    """
+    with session() as s:
+        runs = s.execute(delete(BacktestRun).where(BacktestRun.strategy_id == strategy_id))
+        events = s.execute(delete(AgentEvent).where(AgentEvent.strategy_id == strategy_id))
+        row = s.get(Strategy, strategy_id)
+        ir_freed = 0
+        if row is not None:
+            ir_freed = len(json.dumps(row.ir or {}))
+            row.ir = {}
+            row.status = "purged_reject"
+    return {
+        "runs_deleted": int(runs.rowcount or 0),
+        "events_deleted": int(events.rowcount or 0),
+        "ir_bytes_freed": ir_freed,
     }

@@ -1,11 +1,31 @@
 # Factory behaviour + the bar a strategy must clear to be delivered.
 # Everything here is editable from the control room UI.
 
+# Breadth is deliberately low. Ten thousand throwaway strategies is motion, not
+# progress: the value is in finding one idea with a real edge and then working it
+# properly (see `champion` below). Fewer fresh ideas, far more effort per idea.
 cycle:
   interval_seconds: 60          # how often the orchestrator starts a new research cycle
-  strategies_per_cycle: 4       # ideas generated per cycle
+  strategies_per_cycle: 2       # fresh ideas per cycle - kept small on purpose
   max_parallel_backtests: 4
   elite_population: 20          # breeding stock kept per asset
+
+# When an idea shows promise, stop the conveyor belt and work it hard.
+#   1. sweep it across every asset and every timeframe  (in-sample only)
+#   2. keep the cells where it actually performs
+#   3. tune each survivor with a much bigger budget than the routine tuner
+#   4. push the results back through the full pipeline for judgement
+#
+# The sweep never touches out-of-sample data, so the winner can still be judged
+# on bars nothing has looked at. And a best-of-N winner is reported with a
+# deflated score too, because picking the luckiest of 20 cells flatters itself.
+champion:
+  enabled: true
+  min_score: 0.35             # robust score that earns a campaign
+  max_generation: 3           # stop promoting a lineage after this many rounds
+  sweep_max_cells: 24         # asset x timeframe combinations to try
+  promote_top_k: 2            # how many winning cells to carry forward
+  tune_trials: 120            # deep-tune budget per promoted cell
 
 backtest:
   initial_balance: 10000
@@ -109,8 +129,17 @@ storage:
 # learning loop needs them - only the bulky per-bar detail of rejected work.
 # Measured: stripping that detail shrank the database by 54%.
 retention:
+  # The moment a strategy is REJECTED, delete its bulk - no waiting for a sweep.
+  # Goes immediately: all backtest runs (equity curves + trade lists, ~125 KB,
+  # about 97% of what a strategy costs) and its event log.
+  # Kept, ~5 KB: the fingerprint (so the factory never re-tests the same failing
+  # idea) and the verdict checks (the memory agent learns from failures, and the
+  # "why nothing is passing" panel is built from them). Diagnosis kept, evidence
+  # locker emptied.
+  purge_rejected_immediately: true
+
   prune_interval_minutes: 15
   events_keep_days: 2           # flight-recorder log rows
-  rejected_detail_keep_hours: 2   # strip equity/trade detail of REJECTED strategies
-  rejected_keep_days: 14        # delete rejected strategies entirely after this
+  rejected_detail_keep_hours: 2   # backstop for anything the instant purge missed
+  rejected_keep_days: 14        # drop the leftover stubs after this
   vacuum: true                  # give freed space back to the filesystem (SQLite)
