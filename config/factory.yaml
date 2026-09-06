@@ -86,12 +86,31 @@ storage:
   keep_local_packages: true    # false = delete the local ZIP once it is uploaded
   local_cache_keep_days: 14    # prune local Parquet older than this IF uploaded
 
+  # ─── "do not use the VPS disk" master switch ───────────────────────────────
+  # ON (the default here) means:
+  #   * price history lives in RAM, never written to Parquet   (was ~2-10 MB)
+  #   * ZIPs are built in a temp dir and deleted once a remote channel has a copy
+  #   * logs rotate at 2 MB x 1 instead of 20 MB x 5           (was up to 120 MB)
+  #
+  # What this canNOT remove on its own: the database. That is the only part that
+  # must be writable continuously, and moving it off the box needs a cloud
+  # Postgres URL in .env - see docs/CLOUD_STORAGE.md. Without that, the database
+  # is the one remaining consumer, and `retention` below keeps it small.
+  #
+  # Safety: a package is never deleted unless some other channel (object storage
+  # or Telegram) actually confirmed it took a copy. A failed upload keeps the file.
+  minimise_local_disk: true
+  price_cache: memory          # memory | disk  (forced to memory by the switch)
+
 # Housekeeping. The factory runs forever, so disk use has to be bounded.
 # Metrics and verdicts are NEVER deleted by these settings - only the bulky
 # per-bar detail (equity curves, trade lists) of work that was already rejected.
+# Tuned for a small disk. Metrics and verdicts are NEVER deleted by these - the
+# learning loop needs them - only the bulky per-bar detail of rejected work.
+# Measured: stripping that detail shrank the database by 54%.
 retention:
-  prune_interval_minutes: 30
-  events_keep_days: 7           # flight-recorder log rows
-  rejected_detail_keep_hours: 12  # strip equity/trade detail of REJECTED strategies
-  rejected_keep_days: 60        # delete rejected strategies entirely after this
+  prune_interval_minutes: 15
+  events_keep_days: 2           # flight-recorder log rows
+  rejected_detail_keep_hours: 2   # strip equity/trade detail of REJECTED strategies
+  rejected_keep_days: 14        # delete rejected strategies entirely after this
   vacuum: true                  # give freed space back to the filesystem (SQLite)

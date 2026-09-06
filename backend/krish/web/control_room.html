@@ -751,7 +751,15 @@ async function refreshAll(){
     ["logs", disk.logs_mb, disk.notes?.logs ?? ""],
   ];
   const os = disk.object_store || {};
+  const min = disk.minimise_local_disk;
   $("storage").innerHTML = `
+    ${min ? `<div style="background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);
+        border-radius:9px;padding:8px 10px;margin-bottom:10px;font-size:11px">
+        <b style="color:var(--deliver)">Minimal-disk mode on.</b> Price history is in
+        ${esc(disk.price_cache_mode)}, ZIPs are deleted once a remote channel has a copy,
+        logs capped at 4 MB.${!os.enabled ? ` <span style="color:var(--valid)">The database is
+        still local — point DATABASE_URL at cloud Postgres for a truly empty disk.</span>` : ""}
+      </div>` : ""}
     <table><tbody>${rows.map(([k,v,n]) => `<tr><td>${k}</td>
       <td style="font-family:var(--mono)">${fmt(v,1)} MB</td>
       <td class="dimmer" style="font-size:10px">${esc(n)}</td></tr>`).join("")}</tbody></table>

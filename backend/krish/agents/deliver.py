@@ -15,6 +15,7 @@ import io
 import json
 import logging
 import shutil
+import tempfile
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,7 +30,13 @@ from ..compilers.python_export import to_python_runner
 from ..config import PACKAGE_DIR, factory_section, settings
 from ..ir.schema import StrategyIR
 from ..messages import Message, Topic
-from ..storage import keep_local_packages, package_key, store, upload_packages
+from ..storage import (
+    keep_local_packages,
+    minimise_local_disk,
+    package_key,
+    store,
+    upload_packages,
+)
 from ..store import Delivery, in_db, runs_for_strategy, save, update_project
 from .base import BaseAgent
 
@@ -377,7 +384,10 @@ class PackagerAgent(BaseAgent):
     def _build(
         self, ir: StrategyIR, payload: dict[str, Any], package_name: str, verdict: str
     ) -> tuple[Path, str, int, dict[str, Any]]:
-        staging = PACKAGE_DIR / package_name
+        staging_root = (
+            Path(tempfile.mkdtemp(prefix="krish_stage_")) if minimise_local_disk() else PACKAGE_DIR
+        )
+        staging = staging_root / package_name
         if staging.exists():
             shutil.rmtree(staging)
         staging.mkdir(parents=True)
@@ -447,16 +457,23 @@ class PackagerAgent(BaseAgent):
         }
         (staging / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-        zip_path = PACKAGE_DIR / f"{package_name}.zip"
+        # With local disk minimised the ZIP is a courier, not an archive: it lives
+        # in a temp directory only long enough for the delivery channels to take a
+        # copy, and never lands in var/.
+        out_dir = (
+            Path(tempfile.mkdtemp(prefix="krish_pkg_")) if minimise_local_disk() else PACKAGE_DIR
+        )
+        zip_path = out_dir / f"{package_name}.zip"
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for file in sorted(staging.rglob("*")):
                 if file.is_file():
                     zf.write(file, arcname=f"{package_name}/{file.relative_to(staging)}")
 
         digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
-        (PACKAGE_DIR / f"{package_name}.zip.sha256").write_text(
-            f"{digest}  {zip_path.name}\n", encoding="utf-8"
-        )
+        if not minimise_local_disk():
+            (out_dir / f"{package_name}.zip.sha256").write_text(
+                f"{digest}  {zip_path.name}\n", encoding="utf-8"
+            )
         shutil.rmtree(staging)
         return zip_path, digest, zip_path.stat().st_size, manifest
 
@@ -534,14 +551,30 @@ class DeliveryAgent(BaseAgent):
             channels["gdrive"] = {"status": "disabled"}
 
         # Only now, once every channel has had its turn, is it safe to reclaim the
-        # local copy — and only if it genuinely lives somewhere else.
-        if remote_url and not keep_local_packages():
+        # local copy — and ONLY if some other channel actually succeeded. Deleting
+        # the sole copy of a delivered strategy to save 40 KB would be indefensible,
+        # so a failed upload always keeps the file.
+        elsewhere = [
+            name for name, ch in channels.items() if name != "local" and ch.get("status") == "ok"
+        ]
+        if elsewhere and (minimise_local_disk() or not keep_local_packages()):
             with contextlib.suppress(OSError):
                 path.unlink(missing_ok=True)
+                with contextlib.suppress(OSError):
+                    if minimise_local_disk() and path.parent.name.startswith("krish_pkg_"):
+                        shutil.rmtree(path.parent, ignore_errors=True)
                 channels["local"] = {
                     "status": "offloaded",
-                    "note": "local copy removed; served from object storage",
+                    "note": f"local copy removed; held by {', '.join(elsewhere)}",
                 }
+        elif minimise_local_disk() and not elsewhere:
+            self.log(
+                "local disk minimisation is on but no remote channel accepted this "
+                "package, so the local copy was KEPT. Configure object storage or "
+                "Telegram, or packages are the one thing still using the disk.",
+                level="warn",
+                msg=msg,
+            )
 
         ok = any(c.get("status") in {"ok", "offloaded"} for c in channels.values())
         await in_db(

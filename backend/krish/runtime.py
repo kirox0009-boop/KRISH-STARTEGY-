@@ -34,6 +34,7 @@ from .agents.validate import (
 from .bus import Bus
 from .bus import bus as default_bus
 from .config import LOG_DIR, factory_section, settings
+from .storage import minimise_local_disk
 from .store import init_db
 
 log = logging.getLogger("krish.runtime")
@@ -73,11 +74,15 @@ def configure_logging() -> None:
     with contextlib.suppress(OSError):
         # Rotating, not plain: this process is meant to run for months, and an
         # unbounded log file is the classic way to fill a VPS disk.
+        # 20 MB x 5 normally; a tenth of that when the operator has asked for the
+        # smallest possible disk footprint. stdout still carries everything, and
+        # the service wrapper captures that.
+        small = minimise_local_disk()
         handlers.append(
             RotatingFileHandler(
                 LOG_DIR / "krish.log",
-                maxBytes=20 * 1024 * 1024,
-                backupCount=5,
+                maxBytes=(2 if small else 20) * 1024 * 1024,
+                backupCount=1 if small else 5,
                 encoding="utf-8",
             )
         )

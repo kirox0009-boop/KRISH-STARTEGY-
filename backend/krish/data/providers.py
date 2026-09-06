@@ -11,6 +11,7 @@ Every frame returned is: DatetimeIndex (UTC, sorted, unique), lowercase columns
 
 from __future__ import annotations
 
+import io
 import logging
 import os
 import time
@@ -23,7 +24,7 @@ import pandas as pd
 
 from ..assets import TIMEFRAME_MINUTES, universe
 from ..config import CACHE_DIR
-from ..storage import cache_key, offload_price_cache, store
+from ..storage import cache_key, offload_price_cache, price_cache_mode, store
 
 log = logging.getLogger("krish.data")
 
@@ -50,11 +51,42 @@ def _cache_path(asset_key: str, timeframe: str) -> Path:
     return CACHE_DIR / f"{asset_key.upper()}_{timeframe.upper()}.parquet"
 
 
+#: In-memory price cache, used when local disk is being avoided. A frame is
+#: roughly 0.5 MB, so the whole universe costs single-digit megabytes of RAM -
+#: cheaper than the disk it replaces, and it disappears on restart rather than
+#: accumulating.
+_MEM: dict[tuple[str, str], tuple[pd.DataFrame, float]] = {}
+
+
+def _mem_get(asset: str, timeframe: str, max_age: float) -> pd.DataFrame | None:
+    hit = _MEM.get((asset, timeframe))
+    if hit is None:
+        return None
+    frame, ts = hit
+    return frame if (time.time() - ts) < max_age else None
+
+
 def cache_status() -> list[dict[str, Any]]:
     """What the dashboard shows on its data-health panel."""
     out: list[dict[str, Any]] = []
+    memory_mode = price_cache_mode() == "memory"
     for asset in universe().all():
         for tf in asset.timeframes:
+            if memory_mode:
+                hit = _MEM.get((asset.key, tf))
+                out.append(
+                    {
+                        "asset": asset.key,
+                        "timeframe": tf,
+                        "cached": hit is not None,
+                        "where": "memory",
+                        "bars": len(hit[0]) if hit else None,
+                        "start": str(hit[0].index[0]) if hit else None,
+                        "end": str(hit[0].index[-1]) if hit else None,
+                        "age_seconds": int(time.time() - hit[1]) if hit else None,
+                    }
+                )
+                continue
             path = _cache_path(asset.key, tf)
             if not path.exists():
                 out.append({"asset": asset.key, "timeframe": tf, "cached": False})
@@ -101,6 +133,10 @@ def fetch_ohlcv(
     asset = universe().get(asset_key)
     timeframe = timeframe.upper()
     years = years or universe().history_years
+
+    if price_cache_mode() == "memory":
+        return _fetch_memory_only(asset, timeframe, years, refresh, allow_synthetic)
+
     path = _cache_path(asset.key, timeframe)
 
     if not refresh and path.exists():
@@ -155,6 +191,77 @@ def fetch_ohlcv(
     log.info("cached %s bars for %s %s", len(frame), asset.key, timeframe)
     if offload_price_cache():
         store().put(path, cache_key(asset.key, timeframe))
+    return frame
+
+
+def _fetch_memory_only(
+    asset: Any, timeframe: str, years: int, refresh: bool, allow_synthetic: bool | None
+) -> pd.DataFrame:
+    """Zero-local-disk path: RAM, then object storage, then the provider.
+
+    Nothing is ever written to the VPS filesystem. The object store keeps a copy
+    so a restart does not have to re-download years of history, but if there is no
+    object store configured this simply falls back to re-fetching, which costs
+    seconds and no disk.
+    """
+    key = (asset.key, timeframe)
+
+    if not refresh:
+        cached = _mem_get(asset.key, timeframe, CACHE_TTL_SECONDS)
+        if cached is not None and len(cached) > 200:
+            return cached
+
+        if store().enabled:
+            raw = store().get_bytes(cache_key(asset.key, timeframe))
+            if raw:
+                try:
+                    frame = _clean(pd.read_parquet(io.BytesIO(raw)))
+                    if len(frame) > 200:
+                        _MEM[key] = (frame, time.time())
+                        log.info(
+                            "%s %s restored from object storage (%s bars, no local file)",
+                            asset.key,
+                            timeframe,
+                            len(frame),
+                        )
+                        return frame
+                except Exception:
+                    log.warning("could not read %s %s from object storage", asset.key, timeframe)
+
+    frame: pd.DataFrame | None = None
+    symbol = asset.symbol_for("yfinance")
+    if symbol:
+        try:
+            frame = _fetch_yfinance(symbol, timeframe, years)
+        except Exception as exc:
+            log.warning("yfinance fetch failed for %s (%s): %s", asset.key, symbol, exc)
+
+    if frame is None or len(frame) < 200:
+        stale = _MEM.get(key)
+        if stale is not None and len(stale[0]) > 200:
+            log.warning("using stale in-memory data for %s %s", asset.key, timeframe)
+            return stale[0]
+        if allow_synthetic is None:
+            allow_synthetic = os.getenv("KRISH_ALLOW_SYNTHETIC", "0") == "1"
+        if allow_synthetic:
+            log.warning("SYNTHETIC data for %s %s - plumbing tests only", asset.key, timeframe)
+            frame = _synthetic(asset.key, timeframe, years)
+        else:
+            raise DataError(
+                f"no data for {asset.key} {timeframe}: live fetch failed and nothing "
+                "cached in memory or object storage."
+            )
+
+    frame = _clean(frame)
+    if len(frame) < 200:
+        raise DataError(f"only {len(frame)} clean bars for {asset.key} {timeframe}")
+
+    _MEM[key] = (frame, time.time())
+    if store().enabled:
+        buf = io.BytesIO()
+        frame.to_parquet(buf)
+        store().put_bytes(buf.getvalue(), cache_key(asset.key, timeframe))
+    log.info("%s %s held in memory (%s bars, 0 bytes on disk)", asset.key, timeframe, len(frame))
     return frame
 
 

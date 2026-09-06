@@ -25,7 +25,7 @@ from ..config import ARTIFACT_DIR, CACHE_DIR, DATA_DIR, LOG_DIR, PACKAGE_DIR, fa
 from ..genome import RECIPES
 from ..messages import Message, Topic, new_id
 from ..registry import registry
-from ..storage import cache_key, store
+from ..storage import cache_key, minimise_local_disk, price_cache_mode, store
 from ..store import (
     counts,
     database_bytes,
@@ -371,6 +371,8 @@ def storage_report() -> dict[str, Any]:
         # The price cache is bounded: one file per asset+timeframe, overwritten
         # on refresh. The database is the part that grows with every experiment.
         "object_store": store().describe(),
+        "minimise_local_disk": minimise_local_disk(),
+        "price_cache_mode": price_cache_mode(),
         "notes": {
             "price_cache": "bounded — one file per asset/timeframe, overwritten on refresh",
             "logs": "bounded — rotates at 20 MB, keeps 5 files (~120 MB ceiling)",
